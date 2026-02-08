@@ -1,11 +1,13 @@
-﻿namespace CorsacCosmetics.Cosmetics.Hats;
+﻿using UnityEngine;
+
+namespace CorsacCosmetics.Cosmetics.Hats;
 
 
-public record struct HatMetadata()
+public struct HatMetadata()
 {
-    public string Name { get; set; } = "Custom Hat";
-    public bool MatchPlayerColor { get; set; }
-    public bool BlocksVisors { get; set; }
-    public bool InFront { get; set; } = true;
-    public bool NoBounce { get; set; } = true;
+    public string Name = "Custom Hat";
+    public bool MatchPlayerColor;
+    public bool BlocksVisors;
+    public bool InFront = true;
+    public bool NoBounce = true;
 }

@@ -1,6 +1,7 @@
 using System;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
+using CorsacCosmetics.Cosmetics.Bundle;
 using CorsacCosmetics.Cosmetics.Hats;
 using CorsacCosmetics.Cosmetics.Nameplates;
 using CorsacCosmetics.Cosmetics.Visors;
@@ -29,12 +30,21 @@ public class CosmeticsLoader
 
     public CosmeticReleaseGroup CosmeticGroup { get; }
 
+    private readonly BundleLoader _bundleLoader = new();
+    
     private readonly HatLoader _hatLoader = new();
     private readonly VisorLoader  _visorLoader = new();
     private readonly NamePlateLoader _nameplateLoader = new();
 
     public void LoadCosmetics()
     {
+        Info("Loading bundles...");
+        _bundleLoader.LoadBundles(CosmeticPaths.BundlePath);
+        foreach (var id in _bundleLoader.CosmeticIds)
+        {
+            CosmeticGroup.ids.Add(id);
+        }
+
         Info("Loading hats...");
         _hatLoader.LoadCosmetics(CosmeticPaths.HatPath);
         foreach (var id in _hatLoader.CustomHats.Keys)
@@ -59,6 +69,9 @@ public class CosmeticsLoader
 
     public void InstallCosmetics(ReferenceData referenceData)
     {
+        Info("Installing bundles...");
+        _bundleLoader.InstallCosmetics(referenceData);
+
         Info("Installing hats...");
         _hatLoader.InstallCosmetics(referenceData);
 

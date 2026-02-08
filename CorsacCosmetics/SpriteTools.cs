@@ -30,6 +30,49 @@ public static class SpriteTools
         }
     }
 
+    public static Sprite? LoadSpriteFromStream(Stream stream)
+    {
+        return LoadSpriteFromStream(stream, 0, (uint)stream.Length);
+    }
+
+    public static Texture2D TextureFromStream(Stream stream, long start, uint length)
+    {
+        stream.Seek(start, SeekOrigin.Begin);
+
+        var il2CppBytes = new Il2CppStructArray<byte>(length);
+        il2CppBytes.CopyFromStream(stream, (int)length);
+
+        var texture = new Texture2D(2, 2);
+        texture.LoadImage(il2CppBytes);
+        return texture;
+    }
+
+    public static Sprite? LoadSpriteFromStream(Stream stream, long start, uint length)
+    {
+        if (length == 0)
+        {
+            return null;
+        }
+
+        try
+        {
+            var texture = TextureFromStream(stream, start, length);
+
+            var sprite = Sprite.Create(
+                texture,
+                new Rect(0, 0, texture.width, texture.height),
+                new Vector2(0.5f, 0.5f),
+                100f
+            );
+            return sprite;
+        }
+        catch (Exception e)
+        {
+            Error($"Error while loading sprite from stream:\n{e.ToString()}");
+            return null;
+        }
+    }
+
     public static Sprite? LoadSpriteFromFile(string filePath)
     {
         if (!File.Exists(filePath))
@@ -40,20 +83,13 @@ public static class SpriteTools
         try
         {
             using var fs = new FileStream(filePath, FileMode.Open, FileAccess.Read);
-            var hatData = new Il2CppStructArray<byte>(fs.Length);
-            for (var i = 0; i < fs.Length; i++)
+            var sprite = LoadSpriteFromStream(fs);
+            if (sprite == null)
             {
-                hatData[i] = (byte)fs.ReadByte();
+                Error("Failed to load sprite from file.");
+                return null;
             }
 
-            var texture = new Texture2D(2, 2);
-            texture.LoadImage(hatData);
-            var sprite = Sprite.Create(
-                texture,
-                new Rect(0, 0, texture.width, texture.height),
-                new Vector2(0.5f, 0.5f),
-                100f
-            );
             sprite.name = Path.GetFileNameWithoutExtension(filePath);
             return sprite;
         }
