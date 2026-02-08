@@ -19,6 +19,8 @@ public class CosmeticsLoader
         EmptyKeys = new Il2CppSystem.Collections.Generic.IEnumerable<Il2CppSystem.Object>(_emptyKeys.Pointer);
         CosmeticGroup = ScriptableObject.CreateInstance<CosmeticReleaseGroup>();
         CosmeticGroup.date = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
+
+        _bundleLoader = new BundleLoader(_hatLoader);
     }
 
     private static CosmeticsLoader? _cosmeticsLoader;
@@ -30,7 +32,7 @@ public class CosmeticsLoader
 
     public CosmeticReleaseGroup CosmeticGroup { get; }
 
-    private readonly BundleLoader _bundleLoader = new();
+    private readonly BundleLoader _bundleLoader;
     
     private readonly HatLoader _hatLoader = new();
     private readonly VisorLoader  _visorLoader = new();
@@ -40,10 +42,6 @@ public class CosmeticsLoader
     {
         Info("Loading bundles...");
         _bundleLoader.LoadBundles(CosmeticPaths.BundlePath);
-        foreach (var id in _bundleLoader.CosmeticIds)
-        {
-            CosmeticGroup.ids.Add(id);
-        }
 
         Info("Loading hats...");
         _hatLoader.LoadCosmetics(CosmeticPaths.HatPath);
@@ -69,9 +67,6 @@ public class CosmeticsLoader
 
     public void InstallCosmetics(ReferenceData referenceData)
     {
-        Info("Installing bundles...");
-        _bundleLoader.InstallCosmetics(referenceData);
-
         Info("Installing hats...");
         _hatLoader.InstallCosmetics(referenceData);
 

@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
 using CorsacCosmetics.Cosmetics.Hats;
@@ -9,15 +8,11 @@ using UnityEngine.AddressableAssets;
 
 namespace CorsacCosmetics.Cosmetics.Bundle;
 
-public class BundleLoader
+public class BundleLoader(HatLoader hatLoader)
 {
-    public List<string> CosmeticIds { get; } = [];
-
-    public Dictionary<string, CustomHat> CustomHats { get; } = [];
-
-    public string Normalize(string name, string type)
+    public static string Normalize(string name, string type)
     {
-        return $"corsac.bundle.{type}.{name.ToLower().Replace("_", " ")}";
+        return $"corsac.bundle.{type}.{name.ToLower().Replace(" ", "_")}";
     }
 
     public void LoadBundles(string directory)
@@ -26,27 +21,12 @@ public class BundleLoader
         {
             try
             {
+                Info($"Loading bundle from {file}");
                 LoadBundle(file);
             }
             catch (Exception e)
             {
                 Error($"Error loading bundle from {file}:\n{e.ToString()}");
-            }
-        }
-    }
-
-    public void InstallCosmetics(ReferenceData refData)
-    {
-        foreach (var (id, customHat) in CustomHats)
-        {
-            try
-            {
-                refData.hats.Add(customHat.HatData);
-                Info($"Added {id} to HatManager");
-            }
-            catch (Exception e)
-            {
-                Error($"Failed to load hat {id} with exception:\n{e.ToString()}");
             }
         }
     }
@@ -88,6 +68,7 @@ public class BundleLoader
         foreach (var hatManifest in manifest.Hats)
         {
             LoadHat(hatManifest, fs, start);
+            Info($"Loaded {hatManifest.Name} from bundle");
         }
     }
 
@@ -122,8 +103,7 @@ public class BundleLoader
         hatData.PreviewData = new AssetReference(HatLocator.GetGuid(id, ReferenceType.Preview));
 
         var customHat = new CustomHat(id, hatData, hatViewData, previewData);
-        CustomHats.Add(id, customHat);
-        CosmeticIds.Add(id);
+        hatLoader.CustomHats.Add(id, customHat);
 
         hatData.ViewDataRef.LoadAsset<HatViewData>();
         hatData.PreviewData.LoadAsset<PreviewViewData>();

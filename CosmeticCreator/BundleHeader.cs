@@ -1,9 +1,7 @@
-﻿using System;
-using System.Buffers.Binary;
-using System.IO;
+﻿using System.Buffers.Binary;
 using System.Runtime.InteropServices;
 
-namespace CorsacCosmetics.Cosmetics.Bundle;
+namespace CosmeticCreator;
 
 [StructLayout(LayoutKind.Sequential, Pack = 1, Size = 16)]
 public readonly record struct BundleHeader

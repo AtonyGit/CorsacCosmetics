@@ -1,6 +1,6 @@
 ﻿using System.Text.Json.Serialization;
 
-namespace CorsacCosmetics.Cosmetics.Bundle;
+namespace CosmeticCreator;
 
 [JsonSerializable(typeof(BundleManifest))]
 public partial class BundleManifestContext : JsonSerializerContext;
