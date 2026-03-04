@@ -140,22 +140,22 @@ public class HatLoader : BaseLoader
             return false;
         }
 
-        var climbSpritePath = Path.ChangeExtension(filePath, ".climb.png");
+        var climbSpritePath = Path.ChangeExtension(filePath, ".climb");
         var climbSprite = SpriteTools.LoadSpriteFromFile(climbSpritePath);
         
-        var floorSpritePath = Path.ChangeExtension(filePath, ".floor.png");
+        var floorSpritePath = Path.ChangeExtension(filePath, ".floor");
         var floorSprite = SpriteTools.LoadSpriteFromFile(floorSpritePath);
 
-        var backSpritePath = Path.ChangeExtension(filePath, ".back.png");
+        var backSpritePath = Path.ChangeExtension(filePath, ".back");
         var backSprite = SpriteTools.LoadSpriteFromFile(backSpritePath);
 
-        var leftMainSpritePath = Path.ChangeExtension(filePath, ".left.png");
+        var leftMainSpritePath = Path.ChangeExtension(filePath, ".left");
         var leftMainSprite = SpriteTools.LoadSpriteFromFile(leftMainSpritePath);
 
-        var leftClimbSpritePath = Path.ChangeExtension(filePath, ".left.climb.png");
+        var leftClimbSpritePath = Path.ChangeExtension(filePath, ".leftclimb");
         var leftClimbSprite = SpriteTools.LoadSpriteFromFile(leftClimbSpritePath);
 
-        var leftFloorSpritePath = Path.ChangeExtension(filePath, ".left.floor.png");
+        var leftFloorSpritePath = Path.ChangeExtension(filePath, ".leftfloor");
         var leftFloorSprite = SpriteTools.LoadSpriteFromFile(leftFloorSpritePath);
         
         hatSprite.DontUnload().DontDestroy();
