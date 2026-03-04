@@ -54,7 +54,7 @@ public static class SpriteTools
                 new Vector2(0.5f, 0.5f),
                 100f
             );
-            sprite.name = Path.GetFileNameWithoutExtension(filePath);
+            sprite.name = Path.GetFileName(filePath);
             return sprite;
         }
         catch (Exception e)
