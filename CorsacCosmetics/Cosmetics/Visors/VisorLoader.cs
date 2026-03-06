@@ -162,7 +162,7 @@ public class VisorLoader : BaseLoader
         visorData.ViewDataRef = new AssetReference(HatLocator.GetGuid(fullId, ReferenceType.VisorViewData));
         visorData.PreviewData = new AssetReference(HatLocator.GetGuid(fullId, ReferenceType.Preview));
 
-        var customVisor = new CustomVisor(fullId, metadata, visorData, visorViewData, previewData);
+        var customVisor = new CustomVisor(fullId, visorData, visorViewData, previewData);
         CustomVisors.Add(fullId, customVisor);
         
         visorData.ViewDataRef.LoadAsset<VisorViewData>();

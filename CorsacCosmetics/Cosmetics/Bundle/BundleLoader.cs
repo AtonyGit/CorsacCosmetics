@@ -2,13 +2,14 @@
 using System.IO;
 using System.Text.Json;
 using CorsacCosmetics.Cosmetics.Hats;
+using CorsacCosmetics.Cosmetics.Visors;
 using CorsacCosmetics.Unity;
 using UnityEngine;
 using UnityEngine.AddressableAssets;
 
 namespace CorsacCosmetics.Cosmetics.Bundle;
 
-public class BundleLoader(HatLoader hatLoader)
+public class BundleLoader(HatLoader hatLoader, VisorLoader visorLoader)
 {
     public static string Normalize(string name, string type)
     {
@@ -70,6 +71,12 @@ public class BundleLoader(HatLoader hatLoader)
             LoadHat(hatManifest, fs, start);
             Info($"Loaded {hatManifest.Name} from bundle");
         }
+
+        foreach (var visorManifest in manifest.Visors)
+        {
+            LoadVisor(visorManifest, fs, start);
+            Info($"Loaded {visorManifest.Name} from bundle");
+        }
     }
 
     private void LoadHat(HatManifest manifest, FileStream fs, long start)
@@ -111,5 +118,40 @@ public class BundleLoader(HatLoader hatLoader)
 
         hatData.ViewDataRef.LoadAsset<HatViewData>();
         hatData.PreviewData.LoadAsset<PreviewViewData>();
+    }
+
+    private void LoadVisor(VisorManifest manifest, FileStream fs, long start)
+    {
+        var id = Normalize(manifest.Name, "visor");
+
+        var visorViewData = ScriptableObject.CreateInstance<VisorViewData>();
+        visorViewData.name = manifest.Name;
+        visorViewData.MatchPlayerColor = manifest.MatchPlayerColor;
+        visorViewData.IdleFrame = SpriteTools.LoadSpriteFromStream(fs, start + manifest.IdleSprite.Offset, manifest.IdleSprite.Size);
+        visorViewData.LeftIdleFrame = SpriteTools.LoadSpriteFromStream(fs, start + manifest.LeftIdleSprite.Offset, manifest.LeftIdleSprite.Size);
+        visorViewData.FloorFrame = SpriteTools.LoadSpriteFromStream(fs, start + manifest.FloorSprite.Offset, manifest.FloorSprite.Size);
+        visorViewData.ClimbFrame = SpriteTools.LoadSpriteFromStream(fs, start + manifest.ClimbSprite.Offset, manifest.ClimbSprite.Size);
+
+        var previewData = ScriptableObject.CreateInstance<PreviewViewData>();
+        previewData.name = manifest.Name;
+        previewData.PreviewSprite = SpriteTools.LoadSpriteFromStream(fs, start + manifest.PreviewSprite.Offset, manifest.PreviewSprite.Size);
+        if (!previewData.PreviewSprite)
+        {
+            previewData.PreviewSprite = visorViewData.IdleFrame;
+        }
+
+        var visorData = ScriptableObject.CreateInstance<VisorData>();
+        visorData.name = manifest.Name;
+        visorData.Free = true;
+        visorData.ProductId = id;
+        visorData.behindHats = manifest.BehindHats;
+        visorData.ViewDataRef = new AssetReference(HatLocator.GetGuid(id, ReferenceType.VisorViewData));
+        visorData.PreviewData = new AssetReference(HatLocator.GetGuid(id, ReferenceType.Preview));
+
+        var customVisor = new CustomVisor(id, visorData, visorViewData, previewData);
+        visorLoader.CustomVisors.Add(id, customVisor);
+
+        visorData.ViewDataRef.LoadAsset<VisorViewData>();
+        visorData.PreviewData.LoadAsset<PreviewViewData>();
     }
 }

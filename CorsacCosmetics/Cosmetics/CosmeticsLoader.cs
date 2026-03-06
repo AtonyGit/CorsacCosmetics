@@ -20,7 +20,7 @@ public class CosmeticsLoader
         CosmeticGroup = ScriptableObject.CreateInstance<CosmeticReleaseGroup>();
         CosmeticGroup.date = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
 
-        _bundleLoader = new BundleLoader(_hatLoader);
+        _bundleLoader = new BundleLoader(_hatLoader, _visorLoader);
     }
 
     private static CosmeticsLoader? _cosmeticsLoader;
