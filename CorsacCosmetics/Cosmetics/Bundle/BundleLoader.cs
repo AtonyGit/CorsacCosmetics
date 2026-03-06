@@ -91,6 +91,10 @@ public class BundleLoader(HatLoader hatLoader)
         var previewData = ScriptableObject.CreateInstance<PreviewViewData>();
         previewData.name = manifest.Name;
         previewData.PreviewSprite = SpriteTools.LoadSpriteFromStream(fs, start + manifest.PreviewSprite.Offset, manifest.PreviewSprite.Size);
+        if (!previewData.PreviewSprite)
+        {
+            previewData.PreviewSprite = hatViewData.MainImage;
+        }
 
         var hatData = ScriptableObject.CreateInstance<HatData>();
         hatData.name = hatData.StoreName = manifest.Name;
