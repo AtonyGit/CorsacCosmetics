@@ -90,7 +90,7 @@ public static class SpriteTools
                 return null;
             }
 
-            sprite.name = Path.GetFileNameWithoutExtension(filePath);
+            sprite.name = Path.GetFileName(filePath);
             return sprite;
         }
         catch (Exception e)

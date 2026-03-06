@@ -138,35 +138,76 @@ public class HatLoader : BaseLoader
             return false;
         }
 
-        var climbSpritePath = Path.ChangeExtension(filePath, ".climb.png");
-        var climbSprite = SpriteTools.LoadSpriteFromFile(climbSpritePath);
-        
-        var floorSpritePath = Path.ChangeExtension(filePath, ".floor.png");
-        var floorSprite = SpriteTools.LoadSpriteFromFile(floorSpritePath);
-
-        var backSpritePath = Path.ChangeExtension(filePath, ".back.png");
-        var backSprite = SpriteTools.LoadSpriteFromFile(backSpritePath);
-
-        var leftMainSpritePath = Path.ChangeExtension(filePath, ".left.png");
-        var leftMainSprite = SpriteTools.LoadSpriteFromFile(leftMainSpritePath);
-
-        var leftClimbSpritePath = Path.ChangeExtension(filePath, ".left.climb.png");
-        var leftClimbSprite = SpriteTools.LoadSpriteFromFile(leftClimbSpritePath);
-
-        var leftFloorSpritePath = Path.ChangeExtension(filePath, ".left.floor.png");
-        var leftFloorSprite = SpriteTools.LoadSpriteFromFile(leftFloorSpritePath);
-        
         hatSprite.DontUnload().DontDestroy();
+        
         var hatViewData = ScriptableObject.CreateInstance<HatViewData>();
         hatViewData.name = metadata.Name;
         hatViewData.MatchPlayerColor = metadata.MatchPlayerColor;
         hatViewData.MainImage = hatSprite;
-        hatViewData.BackImage = backSprite ?? hatSprite;
-        hatViewData.ClimbImage = climbSprite ?? hatSprite;
-        hatViewData.FloorImage = floorSprite ?? hatSprite;
-        hatViewData.LeftMainImage = leftMainSprite ?? hatSprite;
-        hatViewData.LeftClimbImage = leftClimbSprite ?? leftMainSprite ?? hatSprite;
-        hatViewData.LeftFloorImage = leftFloorSprite ?? leftMainSprite ?? hatSprite;
+
+
+        var climbSpritePath = Path.ChangeExtension(filePath, ".climb");
+        var climbSprite = SpriteTools.LoadSpriteFromFile(climbSpritePath);
+        if (climbSprite != null)
+        {
+            Info($"Found climb sprite {climbSpritePath}");
+            climbSprite.DontUnload().DontDestroy();
+            hatViewData.ClimbImage = climbSprite;
+        }
+        
+        var floorSpritePath = Path.ChangeExtension(filePath, ".floor");
+        var floorSprite = SpriteTools.LoadSpriteFromFile(floorSpritePath);
+        if (floorSprite != null)
+        {
+            Info($"Found floor sprite {floorSpritePath}");
+            floorSprite.DontUnload().DontDestroy();
+            hatViewData.FloorImage = floorSprite;
+        }
+
+        var backSpritePath = Path.ChangeExtension(filePath, ".back");
+        var backSprite = SpriteTools.LoadSpriteFromFile(backSpritePath);
+        if (backSprite != null)
+        {
+            Info($"Found back sprite {backSpritePath}");
+            backSprite.DontUnload().DontDestroy();
+            hatViewData.BackImage = backSprite;
+        }
+
+        var leftMainSpritePath = Path.ChangeExtension(filePath, ".left");
+        var leftMainSprite = SpriteTools.LoadSpriteFromFile(leftMainSpritePath);
+        if (leftMainSprite != null)
+        {
+            Info($"Found left main sprite {leftMainSpritePath}");
+            leftMainSprite.DontUnload().DontDestroy();
+            hatViewData.LeftMainImage = leftMainSprite;
+        }
+
+        var leftBackSpritePath = Path.ChangeExtension(filePath, ".leftback");
+        var leftBackSprite = SpriteTools.LoadSpriteFromFile(leftBackSpritePath);
+        if (leftBackSprite != null)
+        {
+            Info($"Found left back sprite {leftBackSpritePath}");
+            leftBackSprite.DontUnload().DontDestroy();
+            hatViewData.LeftBackImage = leftBackSprite;
+        }
+
+        var leftClimbSpritePath = Path.ChangeExtension(filePath, ".leftclimb");
+        var leftClimbSprite = SpriteTools.LoadSpriteFromFile(leftClimbSpritePath);
+        if (leftClimbSprite != null)
+        {
+            Info($"Found left climb sprite {leftClimbSpritePath}");
+            leftClimbSprite.DontUnload().DontDestroy();
+            hatViewData.LeftClimbImage = leftClimbSprite;
+        }
+
+        var leftFloorSpritePath = Path.ChangeExtension(filePath, ".leftfloor");
+        var leftFloorSprite = SpriteTools.LoadSpriteFromFile(leftFloorSpritePath);
+        if (leftFloorSprite != null)
+        {
+            Info($"Found left floor sprite {leftFloorSpritePath}");
+            leftFloorSprite.DontUnload().DontDestroy();
+            hatViewData.LeftFloorImage = leftFloorSprite;
+        }
 
         var previewData = ScriptableObject.CreateInstance<PreviewViewData>();
         previewData.name = metadata.Name;
