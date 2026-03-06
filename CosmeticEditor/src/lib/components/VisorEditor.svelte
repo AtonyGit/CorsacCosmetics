@@ -100,17 +100,17 @@
 					class="header-name-input"
 					class:input-error={!hasName}
 					value={visor.manifest.Name}
-					oninput={(e) => updateManifest('Name', (e.target as HTMLInputElement).value)}
-					placeholder="Visor nameâ€¦"
+				oninput={(e) => updateManifest('Name', (e.target as HTMLInputElement).value)}
+					placeholder="Visor name…"
 					aria-label="Visor name"
 				/>
 			{/if}
 		</div>
 		<div class="visor-header-right">
-			<button type="button" class="icon-btn" onclick={() => onmoveup(visor.id)} disabled={index === 0} title="Move up">â†‘</button>
-			<button type="button" class="icon-btn" onclick={() => onmovedown(visor.id)} disabled={index === total - 1} title="Move down">â†“</button>
-			<button type="button" class="icon-btn" onclick={() => onduplicate(visor.id)} title="Duplicate">â§‰</button>
-			<button type="button" class="icon-btn delete-btn" onclick={() => ondelete(visor.id)} title="Delete">âœ•</button>
+			<button type="button" class="icon-btn" onclick={() => onmoveup(visor.id)} disabled={index === 0} title="Move up">↑</button>
+			<button type="button" class="icon-btn" onclick={() => onmovedown(visor.id)} disabled={index === total - 1} title="Move down">↓</button>
+			<button type="button" class="icon-btn" onclick={() => onduplicate(visor.id)} title="Duplicate">⧉</button>
+			<button type="button" class="icon-btn delete-btn" onclick={() => ondelete(visor.id)} title="Delete">✕</button>
 		</div>
 	</div>
 
