@@ -1,4 +1,0 @@
-iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR4nGNgYAAAAAMAAWgmWQ0AAAAASUVORK5CYII=
-
-// This file contains a tiny 1x1 PNG as base64. To create a binary PNG:
-// node -e "require('fs').writeFileSync('sample-small.png', Buffer.from(require('fs').readFileSync('sample-small.png.base64','utf8'),'base64'))"
