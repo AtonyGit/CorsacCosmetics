@@ -4,9 +4,7 @@
 	 * Handles a single sprite slot: drag-and-drop or file input upload,
 	 * thumbnail preview, file name display, and clear/replace controls.
 	 */
-	import type { SpriteSlot } from '$lib/types';
 	import { SPRITE_SLOT_LABELS } from '$lib/types';
-	import { createPreviewUrl } from '$lib/utils/bundle';
 
 	interface Props {
 		slot: string;

@@ -1,87 +1,80 @@
-﻿<script lang="ts">
+<script lang="ts">
 	/**
-	 * VisorEditor.svelte
-	 * Renders the full editing UI for a single visor entry, including:
+	 * NameplateEditor.svelte
+	 * Renders the full editing UI for a single nameplate entry, including:
 	 *  - Name input with validation
-	 *  - Boolean toggles: MatchPlayerColor, BehindHats
-	 *  - All 5 sprite slot uploaders
-	 *  - Preview panel showing the idle/preview sprites
+	 *  - PreviewSprite and NameplateSprite uploaders
 	 *  - Reorder, duplicate, and delete controls
 	 */
-	import type { VisorEntry, VisorSpriteSlot } from '$lib/types';
-	import { VISOR_SPRITE_SLOTS } from '$lib/types';
+	import type { NameplateEntry, NameplateSpriteSlot } from '$lib/types';
+	import { NAMEPLATE_SPRITE_SLOTS } from '$lib/types';
 	import { createPreviewUrl } from '$lib/utils/bundle';
 	import SpriteUploader from './SpriteUploader.svelte';
 
 	interface Props {
-		visor: VisorEntry;
+		nameplate: NameplateEntry;
 		index: number;
 		total: number;
-		onupdate: (id: string, visor: VisorEntry) => void;
+		onupdate: (id: string, nameplate: NameplateEntry) => void;
 		ondelete: (id: string) => void;
 		onduplicate: (id: string) => void;
 		onmoveup: (id: string) => void;
 		onmovedown: (id: string) => void;
 	}
 
-	let { visor, index, total, onupdate, ondelete, onduplicate, onmoveup, onmovedown }: Props = $props();
+	let { nameplate, index, total, onupdate, ondelete, onduplicate, onmoveup, onmovedown }: Props = $props();
 
 	let isCollapsed = $state(false);
 
 	function updateManifest(key: string, value: unknown) {
-		const updated: VisorEntry = {
-			...visor,
-			manifest: { ...visor.manifest, [key]: value },
+		const updated: NameplateEntry = {
+			...nameplate,
+			manifest: { ...nameplate.manifest, [key]: value },
 		};
-		onupdate(visor.id, updated);
+		onupdate(nameplate.id, updated);
 	}
 
-	function handleSpriteUpload(slot: VisorSpriteSlot, bytes: Uint8Array, fileName: string) {
-		const existingUrl = visor.previewUrls[slot];
+	function handleSpriteUpload(slot: NameplateSpriteSlot, bytes: Uint8Array, fileName: string) {
+		const existingUrl = nameplate.previewUrls[slot];
 		if (existingUrl) URL.revokeObjectURL(existingUrl);
 
 		const url = createPreviewUrl(bytes);
-		const updated: VisorEntry = {
-			...visor,
-			imageBytes: { ...visor.imageBytes, [slot]: bytes },
-			previewUrls: { ...visor.previewUrls, [slot]: url },
-			fileNames: { ...visor.fileNames, [slot]: fileName },
+		const updated: NameplateEntry = {
+			...nameplate,
+			imageBytes: { ...nameplate.imageBytes, [slot]: bytes },
+			previewUrls: { ...nameplate.previewUrls, [slot]: url },
+			fileNames: { ...nameplate.fileNames, [slot]: fileName },
 		};
-		onupdate(visor.id, updated);
+		onupdate(nameplate.id, updated);
 	}
 
-	function handleSpriteClear(slot: VisorSpriteSlot) {
-		const existingUrl = visor.previewUrls[slot];
+	function handleSpriteClear(slot: NameplateSpriteSlot) {
+		const existingUrl = nameplate.previewUrls[slot];
 		if (existingUrl) URL.revokeObjectURL(existingUrl);
 
-		const imageBytes = { ...visor.imageBytes };
-		const previewUrls = { ...visor.previewUrls };
-		const fileNames = { ...visor.fileNames };
+		const imageBytes = { ...nameplate.imageBytes };
+		const previewUrls = { ...nameplate.previewUrls };
+		const fileNames = { ...nameplate.fileNames };
 		delete imageBytes[slot];
 		delete previewUrls[slot];
 		delete fileNames[slot];
 
-		onupdate(visor.id, { ...visor, imageBytes, previewUrls, fileNames });
+		onupdate(nameplate.id, { ...nameplate, imageBytes, previewUrls, fileNames });
 	}
 
-	const toggles = [
-		{ key: 'MatchPlayerColor', label: 'Match Player Color', hint: 'Recolors visor to match the player color' },
-		{ key: 'BehindHats', label: 'Behind Hats', hint: 'Visor renders behind hats instead of in front' },
-	] as const;
-
-	const hasName = $derived(visor.manifest.Name.trim() !== '');
+	const hasName = $derived(nameplate.manifest.Name.trim() !== '');
 </script>
 
-<div class="visor-editor" class:has-error={!hasName}>
+<div class="nameplate-editor" class:has-error={!hasName}>
 	<!-- Header -->
-	<div class="visor-header">
-		<div class="visor-header-left">
+	<div class="nameplate-header">
+		<div class="nameplate-header-left">
 			<button
 				type="button"
 				class="collapse-btn"
 				onclick={() => (isCollapsed = !isCollapsed)}
 				aria-expanded={!isCollapsed}
-				aria-label={isCollapsed ? 'Expand visor' : 'Collapse visor'}
+				aria-label={isCollapsed ? 'Expand nameplate' : 'Collapse nameplate'}
 			>
 				<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"
 					class="chevron" class:rotated={isCollapsed} aria-hidden="true">
@@ -91,7 +84,7 @@
 			<span class="item-index">#{index + 1}</span>
 			{#if isCollapsed}
 				<span class="item-name" class:unnamed={!hasName}>
-					{visor.manifest.Name.trim() || 'Unnamed Visor'}
+					{nameplate.manifest.Name.trim() || 'Unnamed Nameplate'}
 				</span>
 				{#if !hasName}<span class="validation-badge">Name required</span>{/if}
 			{:else}
@@ -99,43 +92,33 @@
 					type="text"
 					class="header-name-input"
 					class:input-error={!hasName}
-					value={visor.manifest.Name}
-				oninput={(e) => updateManifest('Name', (e.target as HTMLInputElement).value)}
-					placeholder="Visor name…"
-					aria-label="Visor name"
+					value={nameplate.manifest.Name}
+					oninput={(e) => updateManifest('Name', (e.target as HTMLInputElement).value)}
+					placeholder="Nameplate name…"
+					aria-label="Nameplate name"
 				/>
 			{/if}
 		</div>
-		<div class="visor-header-right">
-			<button type="button" class="icon-btn" onclick={() => onmoveup(visor.id)} disabled={index === 0} title="Move up">↑</button>
-			<button type="button" class="icon-btn" onclick={() => onmovedown(visor.id)} disabled={index === total - 1} title="Move down">↓</button>
-			<button type="button" class="icon-btn" onclick={() => onduplicate(visor.id)} title="Duplicate">⧉</button>
-			<button type="button" class="icon-btn delete-btn" onclick={() => ondelete(visor.id)} title="Delete">✕</button>
+		<div class="nameplate-header-right">
+			<button type="button" class="icon-btn" onclick={() => onmoveup(nameplate.id)} disabled={index === 0} title="Move up">↑</button>
+			<button type="button" class="icon-btn" onclick={() => onmovedown(nameplate.id)} disabled={index === total - 1} title="Move down">↓</button>
+			<button type="button" class="icon-btn" onclick={() => onduplicate(nameplate.id)} title="Duplicate">⧉</button>
+			<button type="button" class="icon-btn delete-btn" onclick={() => ondelete(nameplate.id)} title="Delete">✕</button>
 		</div>
 	</div>
 
 	{#if !isCollapsed}
-		<div class="visor-body">
-			<div class="toggles-row">
-				{#each toggles as toggle (toggle.key)}
-					<label class="toggle-label" title={toggle.hint}>
-						<input type="checkbox" checked={visor.manifest[toggle.key]}
-							onchange={(e) => updateManifest(toggle.key, (e.target as HTMLInputElement).checked)} />
-						<span>{toggle.label}</span>
-					</label>
-				{/each}
-			</div>
-
+		<div class="nameplate-body">
 			<div class="sprite-section">
 				<div class="sprite-grid">
-					{#each VISOR_SPRITE_SLOTS as slot (slot)}
+					{#each NAMEPLATE_SPRITE_SLOTS as slot (slot)}
 						<SpriteUploader
 							{slot}
-							previewUrl={visor.previewUrls[slot]}
-							fileName={visor.fileNames[slot]}
-							fileSize={visor.imageBytes[slot]?.byteLength}
-							onupload={(s, bytes, name) => handleSpriteUpload(s as VisorSpriteSlot, bytes, name)}
-							onclear={(s) => handleSpriteClear(s as VisorSpriteSlot)}
+							previewUrl={nameplate.previewUrls[slot]}
+							fileName={nameplate.fileNames[slot]}
+							fileSize={nameplate.imageBytes[slot]?.byteLength}
+							onupload={(s, bytes, name) => handleSpriteUpload(s as NameplateSpriteSlot, bytes, name)}
+							onclear={(s) => handleSpriteClear(s as NameplateSpriteSlot)}
 						/>
 					{/each}
 				</div>
@@ -145,20 +128,20 @@
 </div>
 
 <style>
-	.visor-editor {
+	.nameplate-editor {
 		background-color: #1f2937;
 		border: 1px solid #374151;
-		border-left: 3px solid #0d9488;
+		border-left: 3px solid #7c3aed;
 		border-radius: 0.5rem;
 		overflow: hidden;
 	}
 
-	.visor-editor.has-error {
+	.nameplate-editor.has-error {
 		border-left-color: #ef4444;
 		border-color: #ef4444;
 	}
 
-	.visor-header {
+	.nameplate-header {
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
@@ -166,7 +149,7 @@
 		gap: 0.4rem;
 	}
 
-	.visor-header-left {
+	.nameplate-header-left {
 		display: flex;
 		align-items: center;
 		gap: 0.375rem;
@@ -174,7 +157,7 @@
 		flex: 1;
 	}
 
-	.visor-header-right {
+	.nameplate-header-right {
 		display: flex;
 		align-items: center;
 		gap: 0.15rem;
@@ -237,7 +220,7 @@
 		transition: border-color 0.15s;
 	}
 
-	.header-name-input:focus { border-color: #0d9488; }
+	.header-name-input:focus { border-color: #7c3aed; }
 	.header-name-input.input-error { border-color: #ef4444; }
 
 	.validation-badge {
@@ -269,35 +252,12 @@
 	.icon-btn:disabled { opacity: 0.2; cursor: not-allowed; }
 	.delete-btn:hover:not(:disabled) { color: #f87171; border-color: #991b1b; background-color: #1c0a0a; }
 
-	.visor-body {
+	.nameplate-body {
 		padding: 0.5rem 0.75rem;
 		border-top: 1px solid #374151;
 		display: flex;
 		flex-direction: column;
 		gap: 0.5rem;
-	}
-
-	.toggles-row {
-		display: flex;
-		flex-wrap: wrap;
-		gap: 0.25rem 0.875rem;
-	}
-
-	.toggle-label {
-		display: flex;
-		align-items: center;
-		gap: 0.3rem;
-		cursor: pointer;
-		font-size: 0.72rem;
-		color: #9ca3af;
-		white-space: nowrap;
-	}
-
-	.toggle-label input[type='checkbox'] {
-		accent-color: #0d9488;
-		width: 11px;
-		height: 11px;
-		cursor: pointer;
 	}
 
 	.sprite-section {

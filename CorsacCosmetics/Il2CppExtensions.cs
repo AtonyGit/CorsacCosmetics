@@ -9,6 +9,11 @@ public static class Il2CppExtensions
 {
     extension(Il2CppStructArray<byte> destination)
     {
+        /// <summary>
+        /// Fast memory copy from a byte array to an Il2CppStructArray.
+        /// </summary>
+        /// <param name="source"></param>
+        /// <param name="length"></param>
         public unsafe void CopyFrom(byte[] source, int length)
         {
             fixed (byte* sourcePtr = source)
@@ -18,6 +23,12 @@ public static class Il2CppExtensions
             }
         }
 
+        /// <summary>
+        /// Fast memory copy from a stream to an Il2CppStructArray.
+        /// </summary>
+        /// <param name="stream"></param>
+        /// <param name="length"></param>
+        /// <exception cref="EndOfStreamException"></exception>
         public void CopyFromStream(Stream stream, int length)
         {
             var buffer = ArrayPool<byte>.Shared.Rent(length);

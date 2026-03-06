@@ -17,8 +17,8 @@
  * This module is pure browser code — no Node/server APIs used.
  */
 
-import type { BundleManifest, HatEntry, HatManifest, VisorEntry, VisorManifest, SpriteData } from '$lib/types';
-import { SPRITE_SLOTS, VISOR_SPRITE_SLOTS, createEmptySpriteData } from '$lib/types';
+import type { BundleManifest, HatEntry, HatManifest, VisorEntry, VisorManifest, NameplateEntry, NameplateManifest, SpriteData } from '$lib/types';
+import { SPRITE_SLOTS, VISOR_SPRITE_SLOTS, NAMEPLATE_SPRITE_SLOTS, createEmptySpriteData } from '$lib/types';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -155,7 +155,7 @@ export interface AssembledBundle {
  *  5. Write 16-byte header.
  *  6. Concatenate: header + manifestBytes + dataBytes → Blob.
  */
-export function assembleBundle(hats: HatEntry[], visors: VisorEntry[] = []): AssembledBundle {
+export function assembleBundle(hats: HatEntry[], visors: VisorEntry[] = [], nameplates: NameplateEntry[] = []): AssembledBundle {
 	const warnings: string[] = [];
 
 	// --- Step 1 & 2: collect image bytes, compute offsets ---
@@ -226,6 +226,38 @@ export function assembleBundle(hats: HatEntry[], visors: VisorEntry[] = []): Ass
 		}
 	}
 
+	const resolvedNameplates: NameplateManifest[] = nameplates.map((nameplate) => {
+		const m = { ...nameplate.manifest };
+
+		if (!m.Name || m.Name.trim() === '') {
+			warnings.push(`A nameplate has an empty name — it will default to "Custom Nameplate".`);
+			m.Name = 'Custom Nameplate';
+		}
+
+		for (const slot of NAMEPLATE_SPRITE_SLOTS) {
+			const bytes = nameplate.imageBytes[slot];
+			if (bytes && bytes.byteLength > 0) {
+				m[slot] = { Size: bytes.byteLength, Offset: runningOffset } as SpriteData;
+				dataParts.push(bytes);
+				runningOffset += bytes.byteLength;
+			} else {
+				m[slot] = createEmptySpriteData();
+			}
+		}
+		return m;
+	});
+
+	// Check for duplicate nameplate names
+	const nameplateNameCounts = new Map<string, number>();
+	for (const n of resolvedNameplates) {
+		nameplateNameCounts.set(n.Name, (nameplateNameCounts.get(n.Name) ?? 0) + 1);
+	}
+	for (const [name, count] of nameplateNameCounts) {
+		if (count > 1) {
+			warnings.push(`Duplicate nameplate name "${name}" found ${count} times. The C# loader may overwrite duplicates.`);
+		}
+	}
+
 	const dataLength = runningOffset;
 
 	// --- Step 3: build manifest ---
@@ -233,6 +265,7 @@ export function assembleBundle(hats: HatEntry[], visors: VisorEntry[] = []): Ass
 		Version: BUNDLE_VERSION,
 		Hats: resolvedHats,
 		Visors: resolvedVisors,
+		Nameplates: resolvedNameplates,
 	};
 
 	// --- Step 4: serialize manifest ---
@@ -274,10 +307,17 @@ export interface ParsedVisor {
 	imageBytes: Partial<Record<(typeof VISOR_SPRITE_SLOTS)[number], Uint8Array>>;
 }
 
+export interface ParsedNameplate {
+	manifest: NameplateManifest;
+	/** Per-slot image bytes, sliced from the file buffer */
+	imageBytes: Partial<Record<(typeof NAMEPLATE_SPRITE_SLOTS)[number], Uint8Array>>;
+}
+
 export interface ParsedBundle {
 	manifest: BundleManifest;
 	hats: ParsedHat[];
 	visors: ParsedVisor[];
+	nameplates: ParsedNameplate[];
 	warnings: string[];
 }
 
@@ -359,7 +399,29 @@ export function parseBundle(buffer: ArrayBuffer): ParsedBundle {
 		return { manifest: visorManifest, imageBytes };
 	});
 
-	return { manifest, hats, visors, warnings };
+	// --- Extract sprite bytes per nameplate ---
+	const nameplates: ParsedNameplate[] = (manifest.Nameplates ?? []).map((nameplateMeta) => {
+		const imageBytes: Partial<Record<(typeof NAMEPLATE_SPRITE_SLOTS)[number], Uint8Array>> = {};
+
+		for (const slot of NAMEPLATE_SPRITE_SLOTS) {
+			const sprite: SpriteData = nameplateMeta[slot] ?? { Size: 0, Offset: 0 };
+			if (sprite.Size > 0) {
+				const start = dataStart + sprite.Offset;
+				const end = start + sprite.Size;
+				if (end > buffer.byteLength) {
+					warnings.push(
+						`Nameplate "${nameplateMeta.Name}" sprite ${slot}: data range [${start}, ${end}) exceeds file size ${buffer.byteLength}. Skipping.`
+					);
+				} else {
+					imageBytes[slot] = new Uint8Array(buffer.slice(start, end));
+				}
+			}
+		}
+
+		return { manifest: nameplateMeta, imageBytes };
+	});
+
+	return { manifest, hats, visors, nameplates, warnings };
 }
 
 // ---------------------------------------------------------------------------

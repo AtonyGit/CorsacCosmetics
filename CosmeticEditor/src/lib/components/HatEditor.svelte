@@ -9,7 +9,6 @@
 	 *  - Reorder, duplicate, and delete controls
 	 */
 	import type { HatEntry, SpriteSlot } from '$lib/types';
-	import { SPRITE_SLOTS } from '$lib/types';
 	import { createPreviewUrl } from '$lib/utils/bundle';
 	import SpriteUploader from './SpriteUploader.svelte';
 
@@ -129,7 +128,7 @@
 	{#if !isCollapsed}
 		<div class="hat-body">
 			<div class="toggles-row">
-				{#each toggles as toggle}
+				{#each toggles as toggle (toggle.key)}
 					<label class="toggle-label" title={toggle.hint}>
 						<input type="checkbox" checked={hat.manifest[toggle.key]}
 							onchange={(e) => updateManifest(toggle.key, (e.target as HTMLInputElement).checked)} />
@@ -138,11 +137,11 @@
 				{/each}
 			</div>
 
-			{#each spriteRows as row}
+			{#each spriteRows as row (row.label)}
 				<div class="sprite-section">
 					<span class="sprite-section-label">{row.label}</span>
 					<div class="sprite-grid">
-						{#each row.slots as slot}
+						{#each row.slots as slot (slot)}
 							<SpriteUploader
 								{slot}
 								previewUrl={hat.previewUrls[slot]}

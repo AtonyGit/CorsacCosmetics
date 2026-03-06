@@ -9,12 +9,14 @@
 	 *  - Hat list management: add, delete, duplicate, reorder
 	 *  - Validation warnings (empty names, duplicates, large bundles)
 	 */
-	import type { HatEntry, SpriteSlot, VisorEntry, VisorSpriteSlot } from '$lib/types';
-	import { createHatEntry, createVisorEntry } from '$lib/types';
+	import type { HatEntry, SpriteSlot, VisorEntry, VisorSpriteSlot, NameplateEntry, NameplateSpriteSlot } from '$lib/types';
+	import { createHatEntry, createVisorEntry, createNameplateEntry } from '$lib/types';
 	import { assembleBundle, parseBundle, triggerDownload, createPreviewUrl, MAX_BUNDLE_SIZE_BYTES } from '$lib/utils/bundle';
 	import HatEditor from '$lib/components/HatEditor.svelte';
 	import VisorEditor from '$lib/components/VisorEditor.svelte';
+	import NameplateEditor from '$lib/components/NameplateEditor.svelte';
 	import ManifestPreview from '$lib/components/ManifestPreview.svelte';
+	import { SvelteMap } from 'svelte/reactivity';
 
 	// ---------------------------------------------------------------------------
 	// State
@@ -22,6 +24,7 @@
 
 	let hats = $state<HatEntry[]>([]);
 	let visors = $state<VisorEntry[]>([]);
+	let nameplates = $state<NameplateEntry[]>([]);
 	let statusMessage = $state<string>('');
 	let statusType = $state<'info' | 'success' | 'error' | 'warning'>('info');
 	let lastManifestLength = $state<number | null>(null);
@@ -30,7 +33,7 @@
 
 	let openFileInput: HTMLInputElement;
 	let bundleFileName = $state('bundle.ccb');
-	let activeTab = $state<'hats' | 'visors'>('hats');
+	let activeTab = $state<'hats' | 'visors' | 'nameplates'>('hats');
 
 	// ---------------------------------------------------------------------------
 	// Status helpers
@@ -61,8 +64,14 @@
 				if (url) URL.revokeObjectURL(url);
 			}
 		}
+		for (const nameplate of nameplates) {
+			for (const url of Object.values(nameplate.previewUrls)) {
+				if (url) URL.revokeObjectURL(url);
+			}
+		}
 		hats = [];
 		visors = [];
+		nameplates = [];
 		lastManifestLength = null;
 		lastDataLength = null;
 		bundleFileName = 'bundle.ccb';
@@ -193,12 +202,75 @@
 		[arr[idx], arr[idx + 1]] = [arr[idx + 1], arr[idx]];
 		visors = arr;
 	}
+
 	// ---------------------------------------------------------------------------
+	// Nameplate list management
+	// ---------------------------------------------------------------------------
+
+	function addNameplate() {
+		nameplates = [...nameplates, createNameplateEntry()];
+		setStatus(`Added nameplate #${nameplates.length}.`, 'info');
+	}
+
+	function updateNameplate(id: string, updated: NameplateEntry) {
+		nameplates = nameplates.map((n) => (n.id === id ? updated : n));
+	}
+
+	function deleteNameplate(id: string) {
+		const nameplate = nameplates.find((n) => n.id === id);
+		if (nameplate) {
+			for (const url of Object.values(nameplate.previewUrls)) {
+				if (url) URL.revokeObjectURL(url);
+			}
+		}
+		nameplates = nameplates.filter((n) => n.id !== id);
+		setStatus('Nameplate removed.', 'info');
+	}
+
+	function duplicateNameplate(id: string) {
+		const idx = nameplates.findIndex((n) => n.id === id);
+		if (idx === -1) return;
+		const src = nameplates[idx];
+
+		const newPreviewUrls: Partial<Record<NameplateSpriteSlot, string>> = {};
+		for (const [slot, bytes] of Object.entries(src.imageBytes) as [NameplateSpriteSlot, Uint8Array][]) {
+			newPreviewUrls[slot] = createPreviewUrl(bytes);
+		}
+
+		const copy: NameplateEntry = {
+			...createNameplateEntry({
+				...src.manifest,
+				Name: src.manifest.Name + ' (Copy)',
+			}),
+			imageBytes: { ...src.imageBytes },
+			previewUrls: newPreviewUrls,
+			fileNames: { ...src.fileNames },
+		};
+
+		nameplates = [...nameplates.slice(0, idx + 1), copy, ...nameplates.slice(idx + 1)];
+		setStatus(`Duplicated "${src.manifest.Name}".`, 'info');
+	}
+
+	function moveNameplateUp(id: string) {
+		const idx = nameplates.findIndex((n) => n.id === id);
+		if (idx <= 0) return;
+		const arr = [...nameplates];
+		[arr[idx - 1], arr[idx]] = [arr[idx], arr[idx - 1]];
+		nameplates = arr;
+	}
+
+	function moveNameplateDown(id: string) {
+		const idx = nameplates.findIndex((n) => n.id === id);
+		if (idx === -1 || idx >= nameplates.length - 1) return;
+		const arr = [...nameplates];
+		[arr[idx], arr[idx + 1]] = [arr[idx + 1], arr[idx]];
+		nameplates = arr;
+	}
 
 	function validate(): string[] {
 		const warnings: string[] = [];
 		if (hats.length === 0 && visors.length === 0) warnings.push('Bundle has no hats or visors.');
-		const hatNameCounts = new Map<string, number>();
+		const hatNameCounts = new SvelteMap<string, number>();
 		for (const hat of hats) {
 			const name = hat.manifest.Name.trim();
 			if (!name) warnings.push('One or more hats have empty names.');
@@ -209,7 +281,7 @@
 				warnings.push(`Duplicate hat name: "${name}" appears ${count} times.`);
 			}
 		}
-		const visorNameCounts = new Map<string, number>();
+		const visorNameCounts = new SvelteMap<string, number>();
 		for (const visor of visors) {
 			const name = visor.manifest.Name.trim();
 			if (!name) warnings.push('One or more visors have empty names.');
@@ -218,6 +290,17 @@
 		for (const [name, count] of visorNameCounts) {
 			if (count > 1 && name) {
 				warnings.push(`Duplicate visor name: "${name}" appears ${count} times.`);
+			}
+		}
+		const nameplateNameCounts = new SvelteMap<string, number>();
+		for (const nameplate of nameplates) {
+			const name = nameplate.manifest.Name.trim();
+			if (!name) warnings.push('One or more nameplates have empty names.');
+			nameplateNameCounts.set(name, (nameplateNameCounts.get(name) ?? 0) + 1);
+		}
+		for (const [name, count] of nameplateNameCounts) {
+			if (count > 1 && name) {
+				warnings.push(`Duplicate nameplate name: "${name}" appears ${count} times.`);
 			}
 		}
 		return warnings;
@@ -239,7 +322,7 @@
 				// Don't block download, just warn
 			}
 
-			const result = assembleBundle(hats, visors);
+			const result = assembleBundle(hats, visors, nameplates);
 
 			lastManifestLength = result.manifestLength;
 			lastDataLength = result.dataLength;
@@ -250,7 +333,7 @@
 				setStatus('Downloaded with warnings: ' + allWarnings.join(' | '), 'warning');
 			} else {
 				setStatus(
-					`Bundle downloaded! ${hats.length} hat(s), ${visors.length} visor(s). ManifestLength=${result.manifestLength} bytes, DataLength=${result.dataLength} bytes.`,
+					`Bundle downloaded! ${hats.length} hat(s), ${visors.length} visor(s), ${nameplates.length} nameplate(s). ManifestLength=${result.manifestLength} bytes, DataLength=${result.dataLength} bytes.`,
 					'success'
 				);
 			}
@@ -303,6 +386,13 @@
 				}
 			}
 
+			// Revoke existing nameplate URLs
+			for (const nameplate of nameplates) {
+				for (const url of Object.values(nameplate.previewUrls)) {
+					if (url) URL.revokeObjectURL(url);
+				}
+			}
+
 			// Reconstruct HatEntry list from parsed data
 			hats = parsed.hats.map(({ manifest, imageBytes }) => {
 				const previewUrls: Partial<Record<SpriteSlot, string>> = {};
@@ -341,6 +431,25 @@
 				};
 			});
 
+			// Reconstruct NameplateEntry list from parsed data
+			nameplates = parsed.nameplates.map(({ manifest, imageBytes }) => {
+				const previewUrls: Partial<Record<NameplateSpriteSlot, string>> = {};
+				const fileNames: Partial<Record<NameplateSpriteSlot, string>> = {};
+
+				for (const [slot, bytes] of Object.entries(imageBytes) as [NameplateSpriteSlot, Uint8Array][]) {
+					previewUrls[slot] = createPreviewUrl(bytes);
+					fileNames[slot] = `${slot}.png`;
+				}
+
+				return {
+					id: crypto.randomUUID(),
+					manifest,
+					imageBytes,
+					previewUrls,
+					fileNames,
+				};
+			});
+
 			bundleFileName = file.name;
 			lastManifestLength = null;
 			lastDataLength = null;
@@ -348,11 +457,11 @@
 			const warnings = parsed.warnings;
 			if (warnings.length > 0) {
 				setStatus(
-					`Opened "${file.name}" with ${parsed.hats.length} hat(s), ${parsed.visors.length} visor(s). Warnings: ${warnings.join(' | ')}`,
+					`Opened "${file.name}" with ${parsed.hats.length} hat(s), ${parsed.visors.length} visor(s), ${parsed.nameplates.length} nameplate(s). Warnings: ${warnings.join(' | ')}`,
 					'warning'
 				);
 			} else {
-				setStatus(`Opened "${file.name}" — ${parsed.hats.length} hat(s), ${parsed.visors.length} visor(s) loaded successfully.`, 'success');
+				setStatus(`Opened "${file.name}" — ${parsed.hats.length} hat(s), ${parsed.visors.length} visor(s), ${parsed.nameplates.length} nameplate(s) loaded successfully.`, 'success');
 			}
 		} catch (err) {
 			setStatus('Failed to open file: ' + (err instanceof Error ? err.message : String(err)), 'error');
@@ -395,7 +504,7 @@
 				type="button"
 				class="btn btn-primary"
 				onclick={downloadBundle}
-				disabled={isProcessing || (hats.length === 0 && visors.length === 0)}
+				disabled={isProcessing || (hats.length === 0 && visors.length === 0 && nameplates.length === 0)}
 			>
 				⬇ Download .ccb
 			</button>
@@ -451,11 +560,21 @@
 				>
 					🥽 Visors <span class="tab-count">{visors.length}</span>
 				</button>
+				<button
+					type="button"
+					class="tab-btn"
+					class:active={activeTab === 'nameplates'}
+					onclick={() => (activeTab = 'nameplates')}
+				>
+					🪧 Nameplates <span class="tab-count">{nameplates.length}</span>
+				</button>
 				<div class="tab-spacer"></div>
 				{#if activeTab === 'hats'}
 					<button type="button" class="btn btn-add" onclick={addHat}>+ Add Hat</button>
-				{:else}
+				{:else if activeTab === 'visors'}
 					<button type="button" class="btn btn-add-visor" onclick={addVisor}>+ Add Visor</button>
+				{:else}
+					<button type="button" class="btn btn-add-nameplate" onclick={addNameplate}>+ Add Nameplate</button>
 				{/if}
 			</div>
 
@@ -523,11 +642,43 @@
 					</button>
 				{/if}
 			{/if}
+
+			<!-- Nameplates panel -->
+			{#if activeTab === 'nameplates'}
+				{#if nameplates.length === 0}
+					<div class="empty-state">
+						<div class="empty-icon" aria-hidden="true">🪧</div>
+						<p class="empty-title">No nameplates yet</p>
+						<p class="empty-sub">
+							Click <strong>+ Add Nameplate</strong> to include nameplates in your bundle.
+						</p>
+						<button type="button" class="btn btn-primary" onclick={addNameplate}>+ Add Nameplate</button>
+					</div>
+				{:else}
+					<div class="item-list">
+						{#each nameplates as nameplate, index (nameplate.id)}
+							<NameplateEditor
+								{nameplate}
+								{index}
+								total={nameplates.length}
+								onupdate={updateNameplate}
+								ondelete={deleteNameplate}
+								onduplicate={duplicateNameplate}
+								onmoveup={moveNameplateUp}
+								onmovedown={moveNameplateDown}
+							/>
+						{/each}
+					</div>
+					<button type="button" class="btn btn-add-nameplate-bottom" onclick={addNameplate}>
+						+ Add Another Nameplate
+					</button>
+				{/if}
+			{/if}
 		</div>
 
 		<!-- Sidebar: stats + manifest preview -->
 		<aside class="sidebar">
-			<ManifestPreview {hats} {visors} {lastManifestLength} {lastDataLength} />
+			<ManifestPreview {hats} {visors} {nameplates} {lastManifestLength} {lastDataLength} />
 
 			<!-- Format reference card -->
 			<div class="format-card">
@@ -874,6 +1025,30 @@
 
 	.btn-add-visor-bottom:hover {
 		background-color: #134e4a22;
+	}
+
+	.btn-add-nameplate {
+		background-color: #3b1d6e;
+		color: #c4b5fd;
+		border: 1px solid #5b21b6;
+	}
+
+	.btn-add-nameplate:hover {
+		background-color: #4c1d95;
+	}
+
+	.btn-add-nameplate-bottom {
+		background-color: transparent;
+		color: #c4b5fd;
+		border: 1px dashed #5b21b6;
+		width: 100%;
+		padding: 0.6rem;
+		text-align: center;
+		border-radius: 0.5rem;
+	}
+
+	.btn-add-nameplate-bottom:hover {
+		background-color: #3b1d6e22;
 	}
 
 	/* ── Empty state ─────────────────────────────────────────────────────────── */

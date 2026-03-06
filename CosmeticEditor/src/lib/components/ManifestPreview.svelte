@@ -6,18 +6,19 @@
 	 * - ManifestLength and DataLength from the last download
 	 * - A pretty-printed manifest JSON preview
 	 */
-	import type { HatEntry, VisorEntry } from '$lib/types';
-	import { SPRITE_SLOTS, VISOR_SPRITE_SLOTS } from '$lib/types';
-	import { BUNDLE_MAGIC, BUNDLE_VERSION, HEADER_SIZE, serializeManifest } from '$lib/utils/bundle';
+	import type { HatEntry, VisorEntry, NameplateEntry } from '$lib/types';
+	import { SPRITE_SLOTS, VISOR_SPRITE_SLOTS, NAMEPLATE_SPRITE_SLOTS } from '$lib/types';
+	import { BUNDLE_VERSION, HEADER_SIZE, serializeManifest } from '$lib/utils/bundle';
 
 	interface Props {
 		hats: HatEntry[];
 		visors: VisorEntry[];
+		nameplates: NameplateEntry[];
 		lastManifestLength: number | null;
 		lastDataLength: number | null;
 	}
 
-	let { hats, visors, lastManifestLength, lastDataLength }: Props = $props();
+	let { hats, visors, nameplates, lastManifestLength, lastDataLength }: Props = $props();
 
 	let showJson = $state(false);
 
@@ -42,6 +43,15 @@
 				}
 			}
 		}
+		for (const nameplate of nameplates) {
+			for (const slot of NAMEPLATE_SPRITE_SLOTS) {
+				const bytes = nameplate.imageBytes[slot];
+				if (bytes && bytes.byteLength > 0) {
+					spriteCount++;
+					totalDataBytes += bytes.byteLength;
+				}
+			}
+		}
 		return { spriteCount, totalDataBytes };
 	});
 
@@ -54,11 +64,12 @@
 
 	/** Live estimated manifest size (before download is triggered) */
 	const estimatedManifestLength = $derived.by(() => {
-		if (hats.length === 0 && visors.length === 0) return 0;
+		if (hats.length === 0 && visors.length === 0 && nameplates.length === 0) return 0;
 		const manifest = {
 			Version: BUNDLE_VERSION,
 			Hats: hats.map((hat) => ({ ...hat.manifest })),
 			Visors: visors.map((visor) => ({ ...visor.manifest })),
+			Nameplates: nameplates.map((np) => ({ ...np.manifest })),
 		};
 		try {
 			return serializeManifest(manifest).byteLength;
@@ -91,6 +102,10 @@
 		<div class="stat-item">
 			<span class="stat-label">Visors</span>
 			<span class="stat-value">{visors.length}</span>
+		</div>
+		<div class="stat-item">
+			<span class="stat-label">Nameplates</span>
+			<span class="stat-value">{nameplates.length}</span>
 		</div>
 		<div class="stat-item">
 			<span class="stat-label">Sprites</span>
@@ -133,6 +148,7 @@
 						Version: BUNDLE_VERSION,
 						Hats: hats.map((h) => h.manifest),
 						Visors: visors.map((v) => v.manifest),
+						Nameplates: nameplates.map((n) => n.manifest),
 					},
 					null,
 					2

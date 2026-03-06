@@ -78,6 +78,12 @@ public class BundleLoader(HatLoader hatLoader, VisorLoader visorLoader, Nameplat
             LoadVisor(visorManifest, fs, start);
             Info($"Loaded {visorManifest.Name} from bundle");
         }
+
+        foreach (var nameplateManifest in manifest.Nameplates)
+        {
+            LoadNameplate(nameplateManifest, fs, start);
+            Info($"Loaded {nameplateManifest.Name} from bundle");
+        }
     }
 
     private void LoadHat(HatManifest manifest, FileStream fs, long start)

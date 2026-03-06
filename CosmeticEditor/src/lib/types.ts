@@ -42,11 +42,19 @@ export interface VisorManifest {
 	ClimbSprite: SpriteData;
 }
 
+/** Maps directly to C# `NameplateManifest` struct. */
+export interface NameplateManifest {
+	Name: string;
+	PreviewSprite: SpriteData;
+	NameplateSprite: SpriteData;
+}
+
 /** Maps directly to C# `BundleManifest` struct. Version must be 1. */
 export interface BundleManifest {
 	Version: number;
 	Hats: HatManifest[];
 	Visors: VisorManifest[];
+	Nameplates: NameplateManifest[];
 }
 
 /** Sprite slot keys in the deterministic order used when building the data section. */
@@ -97,6 +105,20 @@ export const VISOR_SPRITE_SLOT_LABELS: Record<VisorSpriteSlot, string> = {
 	ClimbSprite: 'Climb',
 };
 
+/** Nameplate sprite slot keys in deterministic order used when building the data section. */
+export const NAMEPLATE_SPRITE_SLOTS = [
+	'PreviewSprite',
+	'NameplateSprite',
+] as const;
+
+export type NameplateSpriteSlot = (typeof NAMEPLATE_SPRITE_SLOTS)[number];
+
+/** Human-readable labels for each nameplate sprite slot shown in the UI. */
+export const NAMEPLATE_SPRITE_SLOT_LABELS: Record<NameplateSpriteSlot, string> = {
+	PreviewSprite: 'Preview',
+	NameplateSprite: 'Nameplate',
+};
+
 /** UI-level hat state, extends HatManifest with in-memory image blobs for each sprite slot. */
 export interface HatEntry {
 	/** Unique client-side identifier for list key management */
@@ -121,6 +143,19 @@ export interface VisorEntry {
 	previewUrls: Partial<Record<VisorSpriteSlot, string>>;
 	/** Original file names for display */
 	fileNames: Partial<Record<VisorSpriteSlot, string>>;
+}
+
+/** UI-level nameplate state, extends NameplateManifest with in-memory image blobs for each sprite slot. */
+export interface NameplateEntry {
+	/** Unique client-side identifier for list key management */
+	id: string;
+	manifest: NameplateManifest;
+	/** Raw image bytes for each sprite slot (File contents loaded into memory) */
+	imageBytes: Partial<Record<NameplateSpriteSlot, Uint8Array>>;
+	/** Object URLs created for preview rendering — must be revoked on removal */
+	previewUrls: Partial<Record<NameplateSpriteSlot, string>>;
+	/** Original file names for display */
+	fileNames: Partial<Record<NameplateSpriteSlot, string>>;
 }
 
 /** Bundle-level editor state. */
@@ -192,6 +227,24 @@ export function createVisorEntry(manifest?: VisorManifest): VisorEntry {
 	return {
 		id: crypto.randomUUID(),
 		manifest: manifest ?? createDefaultVisorManifest(),
+		imageBytes: {},
+		previewUrls: {},
+		fileNames: {},
+	};
+}
+
+export function createDefaultNameplateManifest(): NameplateManifest {
+	return {
+		Name: 'Custom Nameplate',
+		PreviewSprite: createEmptySpriteData(),
+		NameplateSprite: createEmptySpriteData(),
+	};
+}
+
+export function createNameplateEntry(manifest?: NameplateManifest): NameplateEntry {
+	return {
+		id: crypto.randomUUID(),
+		manifest: manifest ?? createDefaultNameplateManifest(),
 		imageBytes: {},
 		previewUrls: {},
 		fileNames: {},

@@ -15,10 +15,11 @@ public struct BundleManifest()
     public uint Version { get; set; } = 0;
     public HatManifest[] Hats { get; set; } = [];
     public VisorManifest[] Visors { get; set; } = [];
+    public NameplateManifest[] Nameplates { get; set; } = [];
 
     public override string ToString()
     {
-        return $"BundleManifest (Version {Version}, Hats: {Hats.Length}, Visors: {Visors.Length})";
+        return $"BundleManifest (Version {Version}, Hats: {Hats.Length}, Visors: {Visors.Length}, Nameplates: {Nameplates.Length})";
     }
 }
 
