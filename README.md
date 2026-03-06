@@ -3,9 +3,17 @@
 CorsacCosmetics is a client-side BepInEx mod for Among Us that adds support for user-provided cosmetic images. This fork updates the original CorsacHats to support newer Among Us versions and expands the available cosmetic types to include hats, visors, and nameplates.
 
 ### Supported cosmetic types and locations
-- Hats: CorsacCosmetics/Hats
-- Visors: CorsacCosmetics/Visors
-- Nameplates: CorsacCosmetics/Nameplates
+- Hats: `CorsacCosmetics/Hats`
+- Visors: `CorsacCosmetics/Visors`
+- Nameplates: `CorsacCosmetics/Nameplates`
+- Bundles: `CorsacCosmetics/Bundles`
+
+### Cosmetic bundles
+
+Cosmetic bundles (`.ccb`) allow you to package multiple cosmetics together and set specific cosmetic sprites (eg. preview, climb). Bundles should be placed in the `CorsacCosmetics/Bundles` folder.
+
+You can create cosmetic bundles with the [online editor](https://allofus.dev/cosmetics/).
+
 
 ### Making your own cosmetics
 You can use the Crewmate_Base.png file in the Templates folder as a base layer for cosmetics.
@@ -15,7 +23,6 @@ but try to stick to the same aspect ratio as the original nameplate (around 3:1)
 Notes:
 - Right now, only PNG format is supported. This will be expanded in future updates.
 - Only static images are supported; animated cosmetics are not currently implemented.
-- The mod doesn't support setting specific cosmetic sprites (eg. climbing sprite) yet.
 - There aren't any templates besides the examples yet.
 
 ### File format and naming
