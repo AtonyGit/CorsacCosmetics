@@ -156,10 +156,6 @@ public class HatLoader : BaseLoader
             climbSprite.DontUnload().DontDestroy();
             hatViewData.ClimbImage = climbSprite;
         }
-        else
-        {
-            hatViewData.ClimbImage = hatSprite;
-        }
         
         var floorSpritePath = Path.ChangeExtension(filePath, ".floor");
         var floorSprite = SpriteTools.LoadSpriteFromFile(floorSpritePath);
@@ -168,10 +164,6 @@ public class HatLoader : BaseLoader
             Info($"Found floor sprite {floorSpritePath}");
             floorSprite.DontUnload().DontDestroy();
             hatViewData.FloorImage = floorSprite;
-        }
-        else
-        {
-            hatViewData.FloorImage = hatSprite;
         }
 
         var backSpritePath = Path.ChangeExtension(filePath, ".back");
@@ -182,10 +174,6 @@ public class HatLoader : BaseLoader
             backSprite.DontUnload().DontDestroy();
             hatViewData.BackImage = backSprite;
         }
-        else
-        {
-            hatViewData.BackImage = hatSprite;
-        }
 
         var leftMainSpritePath = Path.ChangeExtension(filePath, ".left");
         var leftMainSprite = SpriteTools.LoadSpriteFromFile(leftMainSpritePath);
@@ -194,10 +182,6 @@ public class HatLoader : BaseLoader
             Info($"Found left main sprite {leftMainSpritePath}");
             leftMainSprite.DontUnload().DontDestroy();
             hatViewData.LeftMainImage = leftMainSprite;
-        }
-        else
-        {
-            hatViewData.LeftMainImage = hatSprite;
         }
 
         var leftBackSpritePath = Path.ChangeExtension(filePath, ".leftback");
@@ -208,10 +192,6 @@ public class HatLoader : BaseLoader
             leftBackSprite.DontUnload().DontDestroy();
             hatViewData.LeftBackImage = leftBackSprite;
         }
-        else
-        {
-            hatViewData.LeftBackImage = hatViewData.LeftMainImage;
-        }
 
         var leftClimbSpritePath = Path.ChangeExtension(filePath, ".leftclimb");
         var leftClimbSprite = SpriteTools.LoadSpriteFromFile(leftClimbSpritePath);
@@ -221,10 +201,6 @@ public class HatLoader : BaseLoader
             leftClimbSprite.DontUnload().DontDestroy();
             hatViewData.LeftClimbImage = leftClimbSprite;
         }
-        else
-        {
-            hatViewData.LeftClimbImage = hatViewData.LeftMainImage;
-        }
 
         var leftFloorSpritePath = Path.ChangeExtension(filePath, ".leftfloor");
         var leftFloorSprite = SpriteTools.LoadSpriteFromFile(leftFloorSpritePath);
@@ -233,10 +209,6 @@ public class HatLoader : BaseLoader
             Info($"Found left floor sprite {leftFloorSpritePath}");
             leftFloorSprite.DontUnload().DontDestroy();
             hatViewData.LeftFloorImage = leftFloorSprite;
-        }
-        else
-        {
-            hatViewData.LeftFloorImage = hatViewData.LeftMainImage;
         }
 
         var previewData = ScriptableObject.CreateInstance<PreviewViewData>();
