@@ -1,6 +1,6 @@
 namespace CorsacCosmetics.Cosmetics.Nameplates;
 
-public struct NamePlateMetadata()
+public struct NameplateMetadata()
 {
     public string Name = "Custom Visor";
 }

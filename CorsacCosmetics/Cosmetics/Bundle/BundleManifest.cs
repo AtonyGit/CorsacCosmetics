@@ -54,6 +54,14 @@ public struct VisorManifest()
     public SpriteData ClimbSprite { get; set; } = new();
 }
 
+public struct NameplateManifest()
+{
+    public string Name { get; set; } = "Custom Nameplate";
+
+    public SpriteData PreviewSprite { get; set; } = new();
+    public SpriteData NameplateSprite { get; set; } = new();
+}
+
 public struct SpriteData()
 {
     public uint Size { get; set; } = 0;

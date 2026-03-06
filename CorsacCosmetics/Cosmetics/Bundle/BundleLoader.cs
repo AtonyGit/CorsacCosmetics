@@ -2,6 +2,7 @@
 using System.IO;
 using System.Text.Json;
 using CorsacCosmetics.Cosmetics.Hats;
+using CorsacCosmetics.Cosmetics.Nameplates;
 using CorsacCosmetics.Cosmetics.Visors;
 using CorsacCosmetics.Unity;
 using UnityEngine;
@@ -9,7 +10,7 @@ using UnityEngine.AddressableAssets;
 
 namespace CorsacCosmetics.Cosmetics.Bundle;
 
-public class BundleLoader(HatLoader hatLoader, VisorLoader visorLoader)
+public class BundleLoader(HatLoader hatLoader, VisorLoader visorLoader, NameplateLoader nameplateLoader)
 {
     public static string Normalize(string name, string type)
     {
@@ -153,5 +154,35 @@ public class BundleLoader(HatLoader hatLoader, VisorLoader visorLoader)
 
         visorData.ViewDataRef.LoadAsset<VisorViewData>();
         visorData.PreviewData.LoadAsset<PreviewViewData>();
+    }
+
+    private void LoadNameplate(NameplateManifest manifest, FileStream fs, long start)
+    {
+        var id = Normalize(manifest.Name, "nameplate");
+
+        var namePlateViewData = ScriptableObject.CreateInstance<NamePlateViewData>();
+        namePlateViewData.name = manifest.Name;
+        namePlateViewData.Image = SpriteTools.LoadSpriteFromStream(fs, start + manifest.NameplateSprite.Offset, manifest.NameplateSprite.Size);
+
+        var previewData = ScriptableObject.CreateInstance<PreviewViewData>();
+        previewData.name = manifest.Name;
+        previewData.PreviewSprite = SpriteTools.LoadSpriteFromStream(fs, start + manifest.PreviewSprite.Offset, manifest.PreviewSprite.Size);
+        if (!previewData.PreviewSprite)
+        {
+            previewData.PreviewSprite = namePlateViewData.Image;
+        }
+
+        var namePlateData = ScriptableObject.CreateInstance<NamePlateData>();
+        namePlateData.name = manifest.Name;
+        namePlateData.Free = true;
+        namePlateData.ProductId = id;
+        namePlateData.ViewDataRef = new AssetReference(HatLocator.GetGuid(id, ReferenceType.NamePlateViewData));
+        namePlateData.PreviewData = new AssetReference(HatLocator.GetGuid(id, ReferenceType.Preview));
+
+        var customNamePlate = new CustomNamePlate(id, namePlateData, namePlateViewData, previewData);
+        nameplateLoader.CustomNamePlates.Add(id, customNamePlate);
+
+        namePlateData.ViewDataRef.LoadAsset<NamePlateViewData>();
+        namePlateData.PreviewData.LoadAsset<PreviewViewData>();
     }
 }
