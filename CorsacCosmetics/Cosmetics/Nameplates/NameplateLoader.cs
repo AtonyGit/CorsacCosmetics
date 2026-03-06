@@ -14,7 +14,7 @@ using UnityEngine.ResourceManagement.ResourceProviders;
 
 namespace CorsacCosmetics.Cosmetics.Nameplates;
 
-public class NamePlateLoader : BaseLoader
+public class NameplateLoader : BaseLoader
 {
     public Dictionary<string, CustomNamePlate> CustomNamePlates { get; } = [];
 
@@ -109,7 +109,7 @@ public class NamePlateLoader : BaseLoader
     {
         var name = Path.GetFileNameWithoutExtension(filePath);
         var metadataFile = Path.ChangeExtension(filePath, ".json");
-        var metadata = new NamePlateMetadata
+        var metadata = new NameplateMetadata
         {
             Name = name
         };
@@ -118,7 +118,7 @@ public class NamePlateLoader : BaseLoader
             if (File.Exists(metadataFile))
             {
                 var metadataJson = File.ReadAllText(metadataFile);
-                metadata = JsonSerializer.Deserialize<NamePlateMetadata>(metadataJson);
+                metadata = JsonSerializer.Deserialize<NameplateMetadata>(metadataJson);
             }
             else
             {
@@ -156,7 +156,7 @@ public class NamePlateLoader : BaseLoader
         namePlateData.ViewDataRef = new AssetReference(HatLocator.GetGuid(fullId, ReferenceType.NamePlateViewData));
         namePlateData.PreviewData = new AssetReference(HatLocator.GetGuid(fullId, ReferenceType.Preview));
 
-        var customNamePlate = new CustomNamePlate(fullId, metadata, namePlateData, namePlateViewData, previewData);
+        var customNamePlate = new CustomNamePlate(fullId, namePlateData, namePlateViewData, previewData);
         CustomNamePlates.Add(fullId, customNamePlate);
         
         namePlateData.ViewDataRef.LoadAsset<NamePlateViewData>();

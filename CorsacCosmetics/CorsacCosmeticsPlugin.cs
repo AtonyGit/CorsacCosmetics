@@ -2,6 +2,7 @@
 using System.Reflection;
 using BepInEx;
 using BepInEx.Unity.IL2CPP;
+using CorsacCosmetics.Cosmetics;
 using CorsacCosmetics.Unity;
 using HarmonyLib;
 using Reactor;
@@ -33,6 +34,10 @@ public partial class CorsacCosmeticsPlugin : BasePlugin
         Info("Loading Harmony patches...");
         Harmony.PatchAll(Assembly.GetExecutingAssembly());
         Info("Harmony patches loaded!");
+
+        Info("Creating necessary directories...");
+        CosmeticPaths.EnsureDirectoriesExist();
+        Info("Necessary directories created!");
         
         Message("Loaded Corsac Cosmetics Plugin!");
     }

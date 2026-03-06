@@ -1,6 +1,7 @@
 using System;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
+using CorsacCosmetics.Cosmetics.Bundle;
 using CorsacCosmetics.Cosmetics.Hats;
 using CorsacCosmetics.Cosmetics.Nameplates;
 using CorsacCosmetics.Cosmetics.Visors;
@@ -18,6 +19,8 @@ public class CosmeticsLoader
         EmptyKeys = new Il2CppSystem.Collections.Generic.IEnumerable<Il2CppSystem.Object>(_emptyKeys.Pointer);
         CosmeticGroup = ScriptableObject.CreateInstance<CosmeticReleaseGroup>();
         CosmeticGroup.date = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
+
+        _bundleLoader = new BundleLoader(_hatLoader, _visorLoader, _nameplateLoader);
     }
 
     private static CosmeticsLoader? _cosmeticsLoader;
@@ -29,12 +32,17 @@ public class CosmeticsLoader
 
     public CosmeticReleaseGroup CosmeticGroup { get; }
 
+    private readonly BundleLoader _bundleLoader;
+    
     private readonly HatLoader _hatLoader = new();
     private readonly VisorLoader  _visorLoader = new();
-    private readonly NamePlateLoader _nameplateLoader = new();
+    private readonly NameplateLoader _nameplateLoader = new();
 
     public void LoadCosmetics()
     {
+        Info("Loading bundles...");
+        _bundleLoader.LoadBundles(CosmeticPaths.BundlePath);
+
         Info("Loading hats...");
         _hatLoader.LoadCosmetics(CosmeticPaths.HatPath);
         foreach (var id in _hatLoader.CustomHats.Keys)

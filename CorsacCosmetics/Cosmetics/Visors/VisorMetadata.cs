@@ -1,10 +1,8 @@
 namespace CorsacCosmetics.Cosmetics.Visors;
 
-public record struct VisorMetadata()
+public struct VisorMetadata()
 {
-    public string Name { get; set; } = "Custom Visor";
-
-    public bool MatchPlayerColor { get; set; } = false;
-
-    public bool BehindHats { get; set; } = false;
+    public string Name = "Custom Visor";
+    public bool MatchPlayerColor = false;
+    public bool BehindHats = false;
 }

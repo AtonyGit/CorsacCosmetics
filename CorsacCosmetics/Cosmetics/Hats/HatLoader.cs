@@ -2,11 +2,9 @@
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
-using System.Linq;
 using System.Text.Json;
 using CorsacCosmetics.Unity;
 using Il2CppInterop.Runtime;
-using Il2CppInterop.Runtime.InteropTypes.Arrays;
 using Reactor.Utilities.Extensions;
 using UnityEngine;
 using UnityEngine.AddressableAssets;
@@ -225,7 +223,7 @@ public class HatLoader : BaseLoader
         hatData.ViewDataRef = new AssetReference(HatLocator.GetGuid(fullId, ReferenceType.HatViewData));
         hatData.PreviewData = new AssetReference(HatLocator.GetGuid(fullId, ReferenceType.Preview));
 
-        var customHat = new CustomHat(fullId, metadata, hatData, hatViewData, previewData);
+        var customHat = new CustomHat(fullId, hatData, hatViewData, previewData);
         CustomHats.Add(fullId, customHat);
 
         hatData.ViewDataRef.LoadAsset<HatViewData>();
