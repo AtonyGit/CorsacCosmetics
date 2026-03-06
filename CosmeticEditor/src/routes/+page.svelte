@@ -9,10 +9,11 @@
 	 *  - Hat list management: add, delete, duplicate, reorder
 	 *  - Validation warnings (empty names, duplicates, large bundles)
 	 */
-	import type { HatEntry, SpriteSlot } from '$lib/types';
-	import { createHatEntry } from '$lib/types';
+	import type { HatEntry, SpriteSlot, VisorEntry, VisorSpriteSlot } from '$lib/types';
+	import { createHatEntry, createVisorEntry } from '$lib/types';
 	import { assembleBundle, parseBundle, triggerDownload, createPreviewUrl, MAX_BUNDLE_SIZE_BYTES } from '$lib/utils/bundle';
 	import HatEditor from '$lib/components/HatEditor.svelte';
+	import VisorEditor from '$lib/components/VisorEditor.svelte';
 	import ManifestPreview from '$lib/components/ManifestPreview.svelte';
 
 	// ---------------------------------------------------------------------------
@@ -20,6 +21,7 @@
 	// ---------------------------------------------------------------------------
 
 	let hats = $state<HatEntry[]>([]);
+	let visors = $state<VisorEntry[]>([]);
 	let statusMessage = $state<string>('');
 	let statusType = $state<'info' | 'success' | 'error' | 'warning'>('info');
 	let lastManifestLength = $state<number | null>(null);
@@ -28,6 +30,7 @@
 
 	let openFileInput: HTMLInputElement;
 	let bundleFileName = $state('bundle.ccb');
+	let activeTab = $state<'hats' | 'visors'>('hats');
 
 	// ---------------------------------------------------------------------------
 	// Status helpers
@@ -53,7 +56,13 @@
 				if (url) URL.revokeObjectURL(url);
 			}
 		}
+		for (const visor of visors) {
+			for (const url of Object.values(visor.previewUrls)) {
+				if (url) URL.revokeObjectURL(url);
+			}
+		}
 		hats = [];
+		visors = [];
 		lastManifestLength = null;
 		lastDataLength = null;
 		bundleFileName = 'bundle.ccb';
@@ -122,21 +131,93 @@
 	}
 
 	// ---------------------------------------------------------------------------
-	// Validation
+	// Visor list management
+	// ---------------------------------------------------------------------------
+
+	function addVisor() {
+		visors = [...visors, createVisorEntry()];
+		setStatus(`Added visor #${visors.length}.`, 'info');
+	}
+
+	function updateVisor(id: string, updated: VisorEntry) {
+		visors = visors.map((v) => (v.id === id ? updated : v));
+	}
+
+	function deleteVisor(id: string) {
+		const visor = visors.find((v) => v.id === id);
+		if (visor) {
+			for (const url of Object.values(visor.previewUrls)) {
+				if (url) URL.revokeObjectURL(url);
+			}
+		}
+		visors = visors.filter((v) => v.id !== id);
+		setStatus('Visor removed.', 'info');
+	}
+
+	function duplicateVisor(id: string) {
+		const idx = visors.findIndex((v) => v.id === id);
+		if (idx === -1) return;
+		const src = visors[idx];
+
+		const newPreviewUrls: Partial<Record<VisorSpriteSlot, string>> = {};
+		for (const [slot, bytes] of Object.entries(src.imageBytes) as [VisorSpriteSlot, Uint8Array][]) {
+			newPreviewUrls[slot] = createPreviewUrl(bytes);
+		}
+
+		const copy: VisorEntry = {
+			...createVisorEntry({
+				...src.manifest,
+				Name: src.manifest.Name + ' (Copy)',
+			}),
+			imageBytes: { ...src.imageBytes },
+			previewUrls: newPreviewUrls,
+			fileNames: { ...src.fileNames },
+		};
+
+		visors = [...visors.slice(0, idx + 1), copy, ...visors.slice(idx + 1)];
+		setStatus(`Duplicated "${src.manifest.Name}".`, 'info');
+	}
+
+	function moveVisorUp(id: string) {
+		const idx = visors.findIndex((v) => v.id === id);
+		if (idx <= 0) return;
+		const arr = [...visors];
+		[arr[idx - 1], arr[idx]] = [arr[idx], arr[idx - 1]];
+		visors = arr;
+	}
+
+	function moveVisorDown(id: string) {
+		const idx = visors.findIndex((v) => v.id === id);
+		if (idx === -1 || idx >= visors.length - 1) return;
+		const arr = [...visors];
+		[arr[idx], arr[idx + 1]] = [arr[idx + 1], arr[idx]];
+		visors = arr;
+	}
 	// ---------------------------------------------------------------------------
 
 	function validate(): string[] {
 		const warnings: string[] = [];
-		if (hats.length === 0) warnings.push('Bundle has no hats.');
-		const nameCounts = new Map<string, number>();
+		if (hats.length === 0 && visors.length === 0) warnings.push('Bundle has no hats or visors.');
+		const hatNameCounts = new Map<string, number>();
 		for (const hat of hats) {
 			const name = hat.manifest.Name.trim();
 			if (!name) warnings.push('One or more hats have empty names.');
-			nameCounts.set(name, (nameCounts.get(name) ?? 0) + 1);
+			hatNameCounts.set(name, (hatNameCounts.get(name) ?? 0) + 1);
 		}
-		for (const [name, count] of nameCounts) {
+		for (const [name, count] of hatNameCounts) {
 			if (count > 1 && name) {
 				warnings.push(`Duplicate hat name: "${name}" appears ${count} times.`);
+			}
+		}
+		const visorNameCounts = new Map<string, number>();
+		for (const visor of visors) {
+			const name = visor.manifest.Name.trim();
+			if (!name) warnings.push('One or more visors have empty names.');
+			visorNameCounts.set(name, (visorNameCounts.get(name) ?? 0) + 1);
+		}
+		for (const [name, count] of visorNameCounts) {
+			if (count > 1 && name) {
+				warnings.push(`Duplicate visor name: "${name}" appears ${count} times.`);
 			}
 		}
 		return warnings;
@@ -158,7 +239,7 @@
 				// Don't block download, just warn
 			}
 
-			const result = assembleBundle(hats);
+			const result = assembleBundle(hats, visors);
 
 			lastManifestLength = result.manifestLength;
 			lastDataLength = result.dataLength;
@@ -169,7 +250,7 @@
 				setStatus('Downloaded with warnings: ' + allWarnings.join(' | '), 'warning');
 			} else {
 				setStatus(
-					`Bundle downloaded! ManifestLength=${result.manifestLength} bytes, DataLength=${result.dataLength} bytes.`,
+					`Bundle downloaded! ${hats.length} hat(s), ${visors.length} visor(s). ManifestLength=${result.manifestLength} bytes, DataLength=${result.dataLength} bytes.`,
 					'success'
 				);
 			}
@@ -216,6 +297,11 @@
 					if (url) URL.revokeObjectURL(url);
 				}
 			}
+			for (const visor of visors) {
+				for (const url of Object.values(visor.previewUrls)) {
+					if (url) URL.revokeObjectURL(url);
+				}
+			}
 
 			// Reconstruct HatEntry list from parsed data
 			hats = parsed.hats.map(({ manifest, imageBytes }) => {
@@ -236,6 +322,25 @@
 				};
 			});
 
+			// Reconstruct VisorEntry list from parsed data
+			visors = parsed.visors.map(({ manifest, imageBytes }) => {
+				const previewUrls: Partial<Record<VisorSpriteSlot, string>> = {};
+				const fileNames: Partial<Record<VisorSpriteSlot, string>> = {};
+
+				for (const [slot, bytes] of Object.entries(imageBytes) as [VisorSpriteSlot, Uint8Array][]) {
+					previewUrls[slot] = createPreviewUrl(bytes);
+					fileNames[slot] = `${slot}.png`;
+				}
+
+				return {
+					id: crypto.randomUUID(),
+					manifest,
+					imageBytes,
+					previewUrls,
+					fileNames,
+				};
+			});
+
 			bundleFileName = file.name;
 			lastManifestLength = null;
 			lastDataLength = null;
@@ -243,11 +348,11 @@
 			const warnings = parsed.warnings;
 			if (warnings.length > 0) {
 				setStatus(
-					`Opened "${file.name}" with ${parsed.hats.length} hat(s). Warnings: ${warnings.join(' | ')}`,
+					`Opened "${file.name}" with ${parsed.hats.length} hat(s), ${parsed.visors.length} visor(s). Warnings: ${warnings.join(' | ')}`,
 					'warning'
 				);
 			} else {
-				setStatus(`Opened "${file.name}" — ${parsed.hats.length} hat(s) loaded successfully.`, 'success');
+				setStatus(`Opened "${file.name}" — ${parsed.hats.length} hat(s), ${parsed.visors.length} visor(s) loaded successfully.`, 'success');
 			}
 		} catch (err) {
 			setStatus('Failed to open file: ' + (err instanceof Error ? err.message : String(err)), 'error');
@@ -290,7 +395,7 @@
 				type="button"
 				class="btn btn-primary"
 				onclick={downloadBundle}
-				disabled={isProcessing || hats.length === 0}
+				disabled={isProcessing || (hats.length === 0 && visors.length === 0)}
 			>
 				⬇ Download .ccb
 			</button>
@@ -328,56 +433,101 @@
 	<!-- Main content area -->
 	<main class="main-content">
 		<div class="editor-column">
-			<!-- Hat list header -->
-			<div class="section-bar">
-				<h2 class="section-heading">
-					Hats
-					<span class="hat-count">{hats.length}</span>
-				</h2>
-				<button type="button" class="btn btn-add" onclick={addHat}>
-					+ Add Hat
+			<!-- Tab bar -->
+			<div class="tab-bar">
+				<button
+					type="button"
+					class="tab-btn"
+					class:active={activeTab === 'hats'}
+					onclick={() => (activeTab = 'hats')}
+				>
+					🎩 Hats <span class="tab-count">{hats.length}</span>
 				</button>
+				<button
+					type="button"
+					class="tab-btn"
+					class:active={activeTab === 'visors'}
+					onclick={() => (activeTab = 'visors')}
+				>
+					🥽 Visors <span class="tab-count">{visors.length}</span>
+				</button>
+				<div class="tab-spacer"></div>
+				{#if activeTab === 'hats'}
+					<button type="button" class="btn btn-add" onclick={addHat}>+ Add Hat</button>
+				{:else}
+					<button type="button" class="btn btn-add-visor" onclick={addVisor}>+ Add Visor</button>
+				{/if}
 			</div>
 
-			<!-- Empty state -->
-			{#if hats.length === 0}
-				<div class="empty-state">
-					<div class="empty-icon" aria-hidden="true">🎩</div>
-					<p class="empty-title">No hats yet</p>
-					<p class="empty-sub">
-						Click <strong>+ Add Hat</strong> to start building your bundle, or open an existing
-						<code>.ccb</code> file.
-					</p>
-					<button type="button" class="btn btn-primary" onclick={addHat}>
-						+ Add Hat
+			<!-- Hats panel -->
+			{#if activeTab === 'hats'}
+				{#if hats.length === 0}
+					<div class="empty-state">
+						<div class="empty-icon" aria-hidden="true">🎩</div>
+						<p class="empty-title">No hats yet</p>
+						<p class="empty-sub">
+							Click <strong>+ Add Hat</strong> to start building your bundle, or open an
+							existing <code>.ccb</code> file.
+						</p>
+						<button type="button" class="btn btn-primary" onclick={addHat}>+ Add Hat</button>
+					</div>
+				{:else}
+					<div class="item-list">
+						{#each hats as hat, index (hat.id)}
+							<HatEditor
+								{hat}
+								{index}
+								total={hats.length}
+								onupdate={updateHat}
+								ondelete={deleteHat}
+								onduplicate={duplicateHat}
+								onmoveup={moveHatUp}
+								onmovedown={moveHatDown}
+							/>
+						{/each}
+					</div>
+					<button type="button" class="btn btn-add-bottom" onclick={addHat}>
+						+ Add Another Hat
 					</button>
-				</div>
-			{:else}
-				<div class="hat-list">
-					{#each hats as hat, index (hat.id)}
-						<HatEditor
-							{hat}
-							{index}
-							total={hats.length}
-							onupdate={updateHat}
-							ondelete={deleteHat}
-							onduplicate={duplicateHat}
-							onmoveup={moveHatUp}
-							onmovedown={moveHatDown}
-						/>
-					{/each}
-				</div>
+				{/if}
+			{/if}
 
-				<!-- Add another hat at the bottom -->
-				<button type="button" class="btn btn-add-bottom" onclick={addHat}>
-					+ Add Another Hat
-				</button>
+			<!-- Visors panel -->
+			{#if activeTab === 'visors'}
+				{#if visors.length === 0}
+					<div class="empty-state">
+						<div class="empty-icon" aria-hidden="true">🥽</div>
+						<p class="empty-title">No visors yet</p>
+						<p class="empty-sub">
+							Click <strong>+ Add Visor</strong> to include visors in your bundle.
+						</p>
+						<button type="button" class="btn btn-primary" onclick={addVisor}>+ Add Visor</button>
+					</div>
+				{:else}
+					<div class="item-list">
+						{#each visors as visor, index (visor.id)}
+							<VisorEditor
+								{visor}
+								{index}
+								total={visors.length}
+								onupdate={updateVisor}
+								ondelete={deleteVisor}
+								onduplicate={duplicateVisor}
+								onmoveup={moveVisorUp}
+								onmovedown={moveVisorDown}
+							/>
+						{/each}
+					</div>
+					<button type="button" class="btn btn-add-visor-bottom" onclick={addVisor}>
+						+ Add Another Visor
+					</button>
+				{/if}
 			{/if}
 		</div>
 
 		<!-- Sidebar: stats + manifest preview -->
 		<aside class="sidebar">
-			<ManifestPreview {hats} {lastManifestLength} {lastDataLength} />
+			<ManifestPreview {hats} {visors} {lastManifestLength} {lastDataLength} />
 
 			<!-- Format reference card -->
 			<div class="format-card">
@@ -639,39 +789,91 @@
 	.editor-column {
 		display: flex;
 		flex-direction: column;
-		gap: 0.875rem;
+		gap: 0.75rem;
 	}
 
-	.section-bar {
+	/* ── Tab bar ─────────────────────────────────────────────────────────────── */
+	.tab-bar {
 		display: flex;
 		align-items: center;
-		justify-content: space-between;
-		padding-bottom: 0.25rem;
+		gap: 0.25rem;
+		border-bottom: 1px solid #1e293b;
+		padding-bottom: 0;
 	}
 
-	.section-heading {
-		font-size: 1rem;
-		font-weight: 700;
-		color: #e5e7eb;
-		margin: 0;
+	.tab-btn {
+		background: none;
+		border: none;
+		border-bottom: 2px solid transparent;
+		margin-bottom: -1px;
+		padding: 0.45rem 0.875rem;
+		font-size: 0.8rem;
+		font-weight: 600;
+		color: #6b7280;
+		cursor: pointer;
 		display: flex;
 		align-items: center;
-		gap: 0.5rem;
+		gap: 0.375rem;
+		transition: color 0.15s, border-color 0.15s;
+		white-space: nowrap;
 	}
 
-	.hat-count {
-		font-size: 0.75rem;
+	.tab-btn:hover {
+		color: #d1d5db;
+	}
+
+	.tab-btn.active {
+		color: #f9fafb;
+		border-bottom-color: #7c3aed;
+	}
+
+	.tab-count {
+		font-size: 0.65rem;
 		background-color: #374151;
 		color: #9ca3af;
-		padding: 0.1rem 0.45rem;
+		padding: 0.05rem 0.4rem;
 		border-radius: 9999px;
-		font-weight: 600;
+		font-weight: 700;
 	}
 
-	.hat-list {
-		display: flex;
-		flex-direction: column;
-		gap: 0.625rem;
+	.tab-btn.active .tab-count {
+		background-color: #4c1d95;
+		color: #c4b5fd;
+	}
+
+	.tab-spacer {
+		flex: 1;
+	}
+
+	.item-list {
+		display: grid;
+		grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+		gap: 0.5rem;
+		align-items: start;
+	}
+
+	.btn-add-visor {
+		background-color: #134e4a;
+		color: #5eead4;
+		border: 1px solid #0f766e;
+	}
+
+	.btn-add-visor:hover {
+		background-color: #0f766e;
+	}
+
+	.btn-add-visor-bottom {
+		background-color: transparent;
+		color: #5eead4;
+		border: 1px dashed #0f766e;
+		width: 100%;
+		padding: 0.6rem;
+		text-align: center;
+		border-radius: 0.5rem;
+	}
+
+	.btn-add-visor-bottom:hover {
+		background-color: #134e4a22;
 	}
 
 	/* ── Empty state ─────────────────────────────────────────────────────────── */

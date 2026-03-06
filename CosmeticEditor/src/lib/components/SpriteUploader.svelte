@@ -9,12 +9,12 @@
 	import { createPreviewUrl } from '$lib/utils/bundle';
 
 	interface Props {
-		slot: SpriteSlot;
+		slot: string;
 		previewUrl?: string | undefined;
 		fileName?: string | undefined;
 		fileSize?: number | undefined;
-		onupload: (slot: SpriteSlot, bytes: Uint8Array, fileName: string) => void;
-		onclear: (slot: SpriteSlot) => void;
+		onupload: (slot: string, bytes: Uint8Array, fileName: string) => void;
+		onclear: (slot: string) => void;
 	}
 
 	let { slot, previewUrl = undefined, fileName = undefined, fileSize = undefined, onupload, onclear }: Props = $props();
@@ -22,7 +22,11 @@
 	let isDragOver = $state(false);
 	let inputEl: HTMLInputElement;
 
-	const label = SPRITE_SLOT_LABELS[slot];
+	// Use SPRITE_SLOT_LABELS if available, else prettify the slot key name
+	const label = $derived(
+		(SPRITE_SLOT_LABELS as Record<string, string>)[slot]
+			?? slot.replace(/([A-Z])/g, ' $1').trim()
+	);
 
 	function formatBytes(bytes: number): string {
 		if (bytes < 1024) return `${bytes} B`;
@@ -65,13 +69,6 @@
 </script>
 
 <div class="sprite-slot">
-	<div class="slot-header">
-		<span class="slot-label">{label}</span>
-		{#if fileName}
-			<span class="file-info">{fileName}{fileSize !== undefined ? ` (${formatBytes(fileSize)})` : ''}</span>
-		{/if}
-	</div>
-
 	<!-- Drop Zone / Preview Area -->
 	<!-- svelte-ignore a11y_interactive_supports_focus -->
 	<div
@@ -85,108 +82,56 @@
 		ondragleave={handleDragLeave}
 		onclick={() => inputEl.click()}
 		onkeydown={(e) => e.key === 'Enter' && inputEl.click()}
+		title={label}
 	>
 		{#if previewUrl}
-			<img src={previewUrl} alt="{label} sprite preview" class="preview-img" />
-			<div class="overlay">
-				<span>Click or drop to replace</span>
-			</div>
+			<img src={previewUrl} alt="{label} sprite" class="preview-img" />
+			<div class="overlay"><span>Replace</span></div>
 		{:else}
 			<div class="empty-zone">
-				<svg
-					xmlns="http://www.w3.org/2000/svg"
-					viewBox="0 0 24 24"
-					fill="none"
-					stroke="currentColor"
-					stroke-width="1.5"
-					class="upload-icon"
-					aria-hidden="true"
-				>
-					<path
-						stroke-linecap="round"
-						stroke-linejoin="round"
-						d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5"
-					/>
+				<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+					stroke="currentColor" stroke-width="1.5" class="upload-icon" aria-hidden="true">
+					<path stroke-linecap="round" stroke-linejoin="round"
+						d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5" />
 				</svg>
 				<span class="empty-label">{label}</span>
-				<span class="empty-hint">Click or drop PNG</span>
 			</div>
 		{/if}
 	</div>
 
-	<!-- Hidden file input -->
-	<input
-		bind:this={inputEl}
-		type="file"
-		accept="image/png,.png"
-		class="sr-only"
-		onchange={handleInputChange}
-		aria-label="Upload {label} sprite"
-	/>
-
-	<!-- Clear button (only shown when image is loaded) -->
+	<!-- Clear button -->
 	{#if previewUrl}
-		<button
-			type="button"
-			class="clear-btn"
-			onclick={() => onclear(slot)}
-			aria-label="Clear {label} sprite"
-		>
-			✕ Clear
-		</button>
+		<button type="button" class="clear-btn" onclick={() => onclear(slot)} aria-label="Clear {label}">✕</button>
 	{/if}
+
+	<input bind:this={inputEl} type="file" accept="image/png,.png" class="sr-only"
+		onchange={handleInputChange} aria-label="Upload {label} sprite" />
 </div>
 
 <style>
 	.sprite-slot {
 		display: flex;
 		flex-direction: column;
-		gap: 0.25rem;
-	}
-
-	.slot-header {
-		display: flex;
-		align-items: baseline;
-		gap: 0.5rem;
-		min-height: 1.25rem;
-	}
-
-	.slot-label {
-		font-size: 0.75rem;
-		font-weight: 600;
-		color: #a78bfa;
-		text-transform: uppercase;
-		letter-spacing: 0.05em;
-		white-space: nowrap;
-	}
-
-	.file-info {
-		font-size: 0.65rem;
-		color: #9ca3af;
-		overflow: hidden;
-		text-overflow: ellipsis;
-		white-space: nowrap;
-		max-width: 120px;
+		align-items: center;
+		gap: 0.2rem;
 	}
 
 	.drop-zone {
 		position: relative;
-		width: 80px;
-		height: 80px;
-		border: 2px dashed #4b5563;
-		border-radius: 0.5rem;
+		width: 60px;
+		height: 60px;
+		border: 1px dashed #374151;
+		border-radius: 0.375rem;
 		cursor: pointer;
 		overflow: hidden;
-		transition:
-			border-color 0.15s,
-			background-color 0.15s;
-		background-color: #1f2937;
+		transition: border-color 0.15s, background-color 0.15s;
+		background-color: #111827;
 	}
 
 	.drop-zone:hover,
 	.drop-zone.drag-over {
-		border-color: #7c3aed;
-		background-color: #1e1b4b;
+		border-color: #6d28d9;
+		background-color: #1e1033;
 	}
 
 	.drop-zone.has-image {
@@ -208,18 +153,15 @@
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		background-color: rgba(0, 0, 0, 0.6);
+		background-color: rgba(0, 0, 0, 0.65);
 		opacity: 0;
 		transition: opacity 0.15s;
-		font-size: 0.6rem;
+		font-size: 0.55rem;
 		color: #e5e7eb;
 		text-align: center;
-		padding: 0.25rem;
 	}
 
-	.drop-zone:hover .overlay {
-		opacity: 1;
-	}
+	.drop-zone:hover .overlay { opacity: 1; }
 
 	.empty-zone {
 		display: flex;
@@ -227,27 +169,39 @@
 		align-items: center;
 		justify-content: center;
 		height: 100%;
-		gap: 0.1rem;
-		color: #6b7280;
+		gap: 0.15rem;
+		color: #374151;
+		padding: 0.25rem;
 	}
 
+	.drop-zone:hover .empty-zone { color: #6b7280; }
+
 	.upload-icon {
-		width: 20px;
-		height: 20px;
+		width: 16px;
+		height: 16px;
 	}
 
 	.empty-label {
-		font-size: 0.55rem;
+		font-size: 0.5rem;
 		font-weight: 600;
 		text-align: center;
 		line-height: 1.2;
-	}
-
-	.empty-hint {
-		font-size: 0.5rem;
-		text-align: center;
 		color: #4b5563;
 	}
+
+	.drop-zone:hover .empty-label { color: #9ca3af; }
+
+	.clear-btn {
+		font-size: 0.6rem;
+		color: #4b5563;
+		background: none;
+		border: none;
+		padding: 0;
+		cursor: pointer;
+		line-height: 1;
+	}
+
+	.clear-btn:hover { color: #f87171; }
 
 	.sr-only {
 		position: absolute;
@@ -259,21 +213,5 @@
 		clip: rect(0, 0, 0, 0);
 		white-space: nowrap;
 		border-width: 0;
-	}
-
-	.clear-btn {
-		font-size: 0.65rem;
-		color: #f87171;
-		background: none;
-		border: none;
-		padding: 0;
-		cursor: pointer;
-		text-align: left;
-		width: fit-content;
-	}
-
-	.clear-btn:hover {
-		color: #fca5a5;
-		text-decoration: underline;
 	}
 </style>

@@ -17,8 +17,8 @@
  * This module is pure browser code — no Node/server APIs used.
  */
 
-import type { BundleManifest, HatEntry, HatManifest, SpriteData } from '$lib/types';
-import { SPRITE_SLOTS, createEmptySpriteData } from '$lib/types';
+import type { BundleManifest, HatEntry, HatManifest, VisorEntry, VisorManifest, SpriteData } from '$lib/types';
+import { SPRITE_SLOTS, VISOR_SPRITE_SLOTS, createEmptySpriteData } from '$lib/types';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -143,10 +143,11 @@ export interface AssembledBundle {
 }
 
 /**
- * Assemble a complete .ccb bundle from a list of HatEntry objects.
+ * Assemble a complete .ccb bundle from lists of HatEntry and VisorEntry objects.
  *
  * Algorithm:
- *  1. Collect all image bytes per hat per sprite slot in deterministic order (SPRITE_SLOTS).
+ *  1. Collect all image bytes per hat per sprite slot, then per visor per sprite slot,
+ *     in deterministic order (SPRITE_SLOTS for hats, VISOR_SPRITE_SLOTS for visors).
  *  2. Assign each sprite an Offset (relative to start-of-data) and Size.
  *     If no image, Size=0 and Offset=0.
  *  3. Build the BundleManifest JSON.
@@ -154,7 +155,7 @@ export interface AssembledBundle {
  *  5. Write 16-byte header.
  *  6. Concatenate: header + manifestBytes + dataBytes → Blob.
  */
-export function assembleBundle(hats: HatEntry[]): AssembledBundle {
+export function assembleBundle(hats: HatEntry[], visors: VisorEntry[] = []): AssembledBundle {
 	const warnings: string[] = [];
 
 	// --- Step 1 & 2: collect image bytes, compute offsets ---
@@ -183,13 +184,45 @@ export function assembleBundle(hats: HatEntry[]): AssembledBundle {
 	});
 
 	// Check for duplicate hat names
-	const nameCounts = new Map<string, number>();
+	const hatNameCounts = new Map<string, number>();
 	for (const h of resolvedHats) {
-		nameCounts.set(h.Name, (nameCounts.get(h.Name) ?? 0) + 1);
+		hatNameCounts.set(h.Name, (hatNameCounts.get(h.Name) ?? 0) + 1);
 	}
-	for (const [name, count] of nameCounts) {
+	for (const [name, count] of hatNameCounts) {
 		if (count > 1) {
 			warnings.push(`Duplicate hat name "${name}" found ${count} times. The C# loader may overwrite duplicates.`);
+		}
+	}
+
+	const resolvedVisors: VisorManifest[] = visors.map((visor) => {
+		const m = { ...visor.manifest };
+
+		if (!m.Name || m.Name.trim() === '') {
+			warnings.push(`A visor has an empty name — it will default to "Custom Visor".`);
+			m.Name = 'Custom Visor';
+		}
+
+		for (const slot of VISOR_SPRITE_SLOTS) {
+			const bytes = visor.imageBytes[slot];
+			if (bytes && bytes.byteLength > 0) {
+				m[slot] = { Size: bytes.byteLength, Offset: runningOffset } as SpriteData;
+				dataParts.push(bytes);
+				runningOffset += bytes.byteLength;
+			} else {
+				m[slot] = createEmptySpriteData();
+			}
+		}
+		return m;
+	});
+
+	// Check for duplicate visor names
+	const visorNameCounts = new Map<string, number>();
+	for (const v of resolvedVisors) {
+		visorNameCounts.set(v.Name, (visorNameCounts.get(v.Name) ?? 0) + 1);
+	}
+	for (const [name, count] of visorNameCounts) {
+		if (count > 1) {
+			warnings.push(`Duplicate visor name "${name}" found ${count} times. The C# loader may overwrite duplicates.`);
 		}
 	}
 
@@ -199,6 +232,7 @@ export function assembleBundle(hats: HatEntry[]): AssembledBundle {
 	const manifest: BundleManifest = {
 		Version: BUNDLE_VERSION,
 		Hats: resolvedHats,
+		Visors: resolvedVisors,
 	};
 
 	// --- Step 4: serialize manifest ---
@@ -215,9 +249,9 @@ export function assembleBundle(hats: HatEntry[]): AssembledBundle {
 	}
 
 	// --- Assemble Blob ---
-	const parts: BlobPart[] = [headerBuffer, manifestBytes];
+	const parts: BlobPart[] = [headerBuffer as ArrayBuffer, manifestBytes.buffer as ArrayBuffer];
 	for (const part of dataParts) {
-		parts.push(part.buffer);
+		parts.push(part.buffer as ArrayBuffer);
 	}
 	const blob = new Blob(parts, { type: 'application/octet-stream' });
 
@@ -234,9 +268,16 @@ export interface ParsedHat {
 	imageBytes: Partial<Record<(typeof SPRITE_SLOTS)[number], Uint8Array>>;
 }
 
+export interface ParsedVisor {
+	manifest: VisorManifest;
+	/** Per-slot image bytes, sliced from the file buffer */
+	imageBytes: Partial<Record<(typeof VISOR_SPRITE_SLOTS)[number], Uint8Array>>;
+}
+
 export interface ParsedBundle {
 	manifest: BundleManifest;
 	hats: ParsedHat[];
+	visors: ParsedVisor[];
 	warnings: string[];
 }
 
@@ -296,7 +337,29 @@ export function parseBundle(buffer: ArrayBuffer): ParsedBundle {
 		return { manifest: hatManifest, imageBytes };
 	});
 
-	return { manifest, hats, warnings };
+	// --- Extract sprite bytes per visor ---
+	const visors: ParsedVisor[] = (manifest.Visors ?? []).map((visorManifest) => {
+		const imageBytes: Partial<Record<(typeof VISOR_SPRITE_SLOTS)[number], Uint8Array>> = {};
+
+		for (const slot of VISOR_SPRITE_SLOTS) {
+			const sprite: SpriteData = visorManifest[slot] ?? { Size: 0, Offset: 0 };
+			if (sprite.Size > 0) {
+				const start = dataStart + sprite.Offset;
+				const end = start + sprite.Size;
+				if (end > buffer.byteLength) {
+					warnings.push(
+						`Visor "${visorManifest.Name}" sprite ${slot}: data range [${start}, ${end}) exceeds file size ${buffer.byteLength}. Skipping.`
+					);
+				} else {
+					imageBytes[slot] = new Uint8Array(buffer.slice(start, end));
+				}
+			}
+		}
+
+		return { manifest: visorManifest, imageBytes };
+	});
+
+	return { manifest, hats, visors, warnings };
 }
 
 // ---------------------------------------------------------------------------
@@ -327,6 +390,6 @@ export function triggerDownload(blob: Blob, filename: string): void {
  * Create an object URL from raw image bytes. Caller is responsible for revoking it.
  */
 export function createPreviewUrl(bytes: Uint8Array): string {
-	const blob = new Blob([bytes], { type: 'image/png' });
+	const blob = new Blob([bytes.buffer as ArrayBuffer], { type: 'image/png' });
 	return URL.createObjectURL(blob);
 }

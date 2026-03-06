@@ -6,17 +6,18 @@
 	 * - ManifestLength and DataLength from the last download
 	 * - A pretty-printed manifest JSON preview
 	 */
-	import type { HatEntry } from '$lib/types';
-	import { SPRITE_SLOTS } from '$lib/types';
+	import type { HatEntry, VisorEntry } from '$lib/types';
+	import { SPRITE_SLOTS, VISOR_SPRITE_SLOTS } from '$lib/types';
 	import { BUNDLE_MAGIC, BUNDLE_VERSION, HEADER_SIZE, serializeManifest } from '$lib/utils/bundle';
 
 	interface Props {
 		hats: HatEntry[];
+		visors: VisorEntry[];
 		lastManifestLength: number | null;
 		lastDataLength: number | null;
 	}
 
-	let { hats, lastManifestLength, lastDataLength }: Props = $props();
+	let { hats, visors, lastManifestLength, lastDataLength }: Props = $props();
 
 	let showJson = $state(false);
 
@@ -26,6 +27,15 @@
 		for (const hat of hats) {
 			for (const slot of SPRITE_SLOTS) {
 				const bytes = hat.imageBytes[slot];
+				if (bytes && bytes.byteLength > 0) {
+					spriteCount++;
+					totalDataBytes += bytes.byteLength;
+				}
+			}
+		}
+		for (const visor of visors) {
+			for (const slot of VISOR_SPRITE_SLOTS) {
+				const bytes = visor.imageBytes[slot];
 				if (bytes && bytes.byteLength > 0) {
 					spriteCount++;
 					totalDataBytes += bytes.byteLength;
@@ -44,14 +54,11 @@
 
 	/** Live estimated manifest size (before download is triggered) */
 	const estimatedManifestLength = $derived.by(() => {
-		if (hats.length === 0) return 0;
-		// Build a rough manifest with placeholder SpriteData (Size/Offset = 0) to estimate JSON size
+		if (hats.length === 0 && visors.length === 0) return 0;
 		const manifest = {
 			Version: BUNDLE_VERSION,
-			Hats: hats.map((hat) => {
-				const m = { ...hat.manifest };
-				return m;
-			}),
+			Hats: hats.map((hat) => ({ ...hat.manifest })),
+			Visors: visors.map((visor) => ({ ...visor.manifest })),
 		};
 		try {
 			return serializeManifest(manifest).byteLength;
@@ -80,6 +87,10 @@
 		<div class="stat-item">
 			<span class="stat-label">Hats</span>
 			<span class="stat-value">{hats.length}</span>
+		</div>
+		<div class="stat-item">
+			<span class="stat-label">Visors</span>
+			<span class="stat-value">{visors.length}</span>
 		</div>
 		<div class="stat-item">
 			<span class="stat-label">Sprites</span>
@@ -121,6 +132,7 @@
 					{
 						Version: BUNDLE_VERSION,
 						Hats: hats.map((h) => h.manifest),
+						Visors: visors.map((v) => v.manifest),
 					},
 					null,
 					2
