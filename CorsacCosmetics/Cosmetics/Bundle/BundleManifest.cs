@@ -14,10 +14,11 @@ public struct BundleManifest()
 
     public uint Version { get; set; } = 0;
     public HatManifest[] Hats { get; set; } = [];
+    public VisorManifest[] Visors { get; set; } = [];
 
     public override string ToString()
     {
-        return $"BundleManifest (Version {Version}, Hats: {Hats.Length})";
+        return $"BundleManifest (Version {Version}, Hats: {Hats.Length}, Visors: {Visors.Length})";
     }
 }
 
@@ -38,6 +39,19 @@ public struct HatManifest()
     public SpriteData LeftBackSprite { get; set; } = new();
     public SpriteData LeftClimbSprite { get; set; } = new();
     public SpriteData LeftFloorSprite { get; set; } = new();
+}
+
+public struct VisorManifest()
+{
+    public string Name { get; set; } = "Custom Visor";
+    public bool MatchPlayerColor { get; set; } = false;
+    public bool BehindHats { get; set; } = false;
+
+    public SpriteData PreviewSprite { get; set; } = new();
+    public SpriteData IdleSprite { get; set; } = new();
+    public SpriteData LeftIdleSprite { get; set; } = new();
+    public SpriteData FloorSprite { get; set; } = new();
+    public SpriteData ClimbSprite { get; set; } = new();
 }
 
 public struct SpriteData()
