@@ -28,7 +28,7 @@ public class BundleLoader(HatLoader hatLoader, VisorLoader visorLoader, Nameplat
             }
             catch (Exception e)
             {
-                Error($"Error loading bundle from {file}:\n{e.ToString()}");
+                Error($"Error loading bundle from {file}:\n{e}");
             }
         }
     }

@@ -12,7 +12,10 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <PackageReference Include="Reactor" Version="2.3.1"/>
+        <EmbeddedResource Include="Resources/*.png" />
+    </ItemGroup>
+
+    <ItemGroup>
         <PackageReference Include="BepInEx.Unity.IL2CPP" Version="6.0.0-be.735" Private="false" ExcludeAssets="runtime;native"/>
         <PackageReference Include="AmongUs.GameLibs.Steam" Version="2025.11.18" PrivateAssets="all" />
 

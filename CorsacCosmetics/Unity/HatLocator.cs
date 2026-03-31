@@ -1,14 +1,12 @@
 ﻿using System;
 using CorsacCosmetics.Cosmetics;
 using Il2CppInterop.Runtime.Injection;
-using Reactor.Utilities.Attributes;
 using UnityEngine.AddressableAssets;
 using UnityEngine.AddressableAssets.ResourceLocators;
 using UnityEngine.ResourceManagement.ResourceLocations;
 
 namespace CorsacCosmetics.Unity;
 
-[RegisterInIl2Cpp(typeof(IResourceLocator))]
 public class HatLocator : Il2CppSystem.Object
 {
 

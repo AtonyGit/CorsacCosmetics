@@ -1,14 +1,12 @@
 ﻿using System;
 using CorsacCosmetics.Cosmetics;
 using Il2CppInterop.Runtime.Injection;
-using Reactor.Utilities.Attributes;
 using UnityEngine.AddressableAssets;
 using UnityEngine.ResourceManagement.ResourceLocations;
 using UnityEngine.ResourceManagement.ResourceProviders;
 
 namespace CorsacCosmetics.Unity;
 
-[RegisterInIl2Cpp(typeof(IResourceProvider))]
 public class HatProvider : ResourceProviderBase
 {
     private static HatProvider? _instance;
