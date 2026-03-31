@@ -68,7 +68,7 @@ public static class SpriteTools
         }
         catch (Exception e)
         {
-            Error($"Error while loading sprite from stream:\n{e.ToString()}");
+            Error($"Error while loading sprite from stream:\n{e}");
             return null;
         }
     }

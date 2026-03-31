@@ -80,9 +80,11 @@ public static class HatsTabPatches
                 NextButton.GetComponent<AspectPosition>().DestroyImmediate();
                 NextButton.GetComponent<CloseButtonConsoleBehaviour>().DestroyImmediate();
                 NextButton.name = "NextButton";
-                NextButton.transform.localPosition = Title.transform.localPosition - new Vector3(2.6f, 0f, 0f);
+                NextButton.transform.localPosition = Title.transform.localPosition - new Vector3(2.7f, 0f, 0f);
+                NextButton.transform.localScale = new Vector3(0.5f, 0.5f, 1);
                 NextButton.OnClick = new Button.ButtonClickedEvent();
                 NextButton.OnClick.AddListener((UnityAction)NextPage);
+                NextButton.GetComponent<SpriteRenderer>().sprite = Assets.NextButton;
             }
 
             if (!BackButton)
@@ -92,6 +94,7 @@ public static class HatsTabPatches
                 BackButton.transform.localPosition -= new Vector3(0.5f, 0f, 0f);
                 BackButton.OnClick = new Button.ButtonClickedEvent();
                 BackButton.OnClick.AddListener((UnityAction)PrevPage);
+                BackButton.GetComponent<SpriteRenderer>().flipX = true;
             }
 
             // ---------- Original Game Code -----------

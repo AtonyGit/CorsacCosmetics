@@ -28,6 +28,8 @@ public partial class CorsacCosmeticsPlugin : BasePlugin
     public override void Load()
     {
         Message("Loading Corsac Cosmetics Plugin...");
+        
+        Assets.Initialize();
 
         ReactorCompat.RegisterCredits();
 
