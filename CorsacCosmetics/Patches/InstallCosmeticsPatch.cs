@@ -3,7 +3,7 @@ using HarmonyLib;
 
 namespace CorsacCosmetics.Patches;
 
-[HarmonyPatch(typeof(ReferenceDataManager._Initialize_d__7), nameof(ReferenceDataManager._Initialize_d__7.MoveNext))]
+[HarmonyPatch(typeof(ReferenceDataManager._Initialize_d__7), "MoveNext")]
 public static class InstallCosmeticsPatch
 {
     private static bool _didRun = false;

@@ -7,8 +7,10 @@ namespace CorsacCosmetics.Cosmetics;
 
 public static class CosmeticPaths
 {
+    public static string StarlightPath => Environment.GetEnvironmentVariable("STAR_DATA_PATH")!;
+    
     public static string BasePath { get; } = Path.Combine(
-        OperatingSystem.IsAndroid() ? Application.persistentDataPath : Paths.GameRootPath,
+        OperatingSystem.IsAndroid() ? StarlightPath : Paths.GameRootPath,
         "CorsacCosmetics"
     );
 
