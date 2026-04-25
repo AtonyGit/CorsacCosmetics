@@ -7,7 +7,7 @@ using UnityEngine.Events;
 
 namespace CorsacCosmetics.Patches;
 
-public static class HatsTabPatches
+public static class VisorsTabPatches
 {
     private static InventoryTabPaginationBehaviour _pagination = null!;
 
@@ -15,10 +15,10 @@ public static class HatsTabPatches
     {
         if (!_pagination || _pagination.CurrentTab == 0)
         {
-            return TranslationController.Instance.GetString(StringNames.HatLabel);
+            return TranslationController.Instance.GetString(StringNames.Visors);
         }
 
-        return CosmeticsLoader.Instance.HatGroups.GetGroupNameByIndex(_pagination.CurrentTab - 1);
+        return CosmeticsLoader.Instance.VisorGroups.GetGroupNameByIndex(_pagination.CurrentTab - 1);
     }
 
     private static bool ShowOnPage(string id)
@@ -30,15 +30,15 @@ public static class HatsTabPatches
         if (!id.StartsWith("corsac")) return false;
         
         var group = Names.GetGroup(id);
-        var currentGroup = CosmeticsLoader.Instance.HatGroups.GetGroupIdByIndex(_pagination.CurrentTab - 1);
+        var currentGroup = CosmeticsLoader.Instance.VisorGroups.GetGroupIdByIndex(_pagination.CurrentTab - 1);
 
         return currentGroup == group;
     }
 
-    [HarmonyPatch(typeof(HatsTab), nameof(HatsTab.OnEnable))]
-    public static class HatsTabOnEnablePatch
+    [HarmonyPatch(typeof(VisorsTab), nameof(VisorsTab.OnEnable))]
+    public static class VisorsTabOnEnablePatch
     {
-        public static bool Prefix(HatsTab __instance)
+        public static bool Prefix(VisorsTab __instance)
         {
             // --------- Pagination ----------------
             _pagination = __instance.GetComponent<InventoryTabPaginationBehaviour>();
@@ -49,20 +49,15 @@ public static class HatsTabPatches
 
             _pagination.Setup(
                 __instance,
-                CosmeticsLoader.Instance.HatGroups.Count,
+                CosmeticsLoader.Instance.VisorGroups.Count,
                 GetText);
-
+            
             // ---------- Original Game Code -----------
-            InventoryTabReversePatch.OnEnable(__instance);
-
-            HatData[] unlockedHats = DestroyableSingleton<HatManager>.Instance.GetUnlockedHats();
-            __instance.currentHat =
-                DestroyableSingleton<HatManager>.Instance.GetHatById(DataManager.Player.Customization.Hat);
-
+            VisorData[] unlockedVisors = DestroyableSingleton<HatManager>.Instance.GetUnlockedVisors();
             var num = 0;
-            foreach (var hat in unlockedHats)
+            foreach (var visor in unlockedVisors)
             {
-                if (!ShowOnPage(hat.ProductId)) continue;
+                if (!ShowOnPage(visor.ProductId)) continue;
 
                 var num2 = __instance.XRange.Lerp(num % __instance.NumPerRow / (__instance.NumPerRow - 1f));
                 var num3 = __instance.YStart - num / __instance.NumPerRow * __instance.YOffset;
@@ -70,14 +65,14 @@ public static class HatsTabPatches
                 colorChip.transform.localPosition = new Vector3(num2, num3, -1f);
                 if (ActiveInputManager.currentControlType == ActiveInputManager.InputType.Keyboard)
                 {
-                    var hat1 = hat;
+                    var visor1 = visor;
                     colorChip.Button.OnMouseOver.AddListener((UnityAction)(()=>
                     {
-                        __instance.SelectHat(hat1);
+                        __instance.SelectVisor(visor1);
                     }));
                     colorChip.Button.OnMouseOut.AddListener((UnityAction)(()=>
                     {
-                        __instance.SelectHat(HatManager.Instance.GetHatById(DataManager.Player.Customization.Hat));
+                        __instance.SelectVisor(DestroyableSingleton<HatManager>.Instance.GetVisorById(DataManager.Player.Customization.Visor));
                     }));
                     colorChip.Button.OnClick.AddListener((UnityAction)(()=>
                     {
@@ -88,25 +83,30 @@ public static class HatsTabPatches
                 {
                     colorChip.Button.OnClick.AddListener((UnityAction)(()=>
                     {
-                        __instance.SelectHat(hat);
+                        __instance.SelectVisor(visor);
                     }));
                 }
                 colorChip.Button.ClickMask = __instance.scroller.Hitbox;
-                colorChip.Inner.SetMaskType(PlayerMaterial.MaskType.SimpleUI);
-                __instance.UpdateMaterials(colorChip.Inner.FrontLayer, hat);
-                hat.SetPreview(colorChip.Inner.FrontLayer, __instance.GetDisplayColor());
-                colorChip.Tag = hat;
+                colorChip.ProductId = visor.ProductId;
+                __instance.UpdateMaterials(colorChip.Inner.FrontLayer, visor);
+                visor.SetPreview(colorChip.Inner.FrontLayer, __instance.GetDisplayColor());
+                colorChip.Tag = visor.ProdId;
                 colorChip.SelectionHighlight.gameObject.SetActive(false);
                 __instance.ColorChips.Add(colorChip);
                 num++;
-                if (!HatManager.Instance.CheckLongModeValidCosmetic(hat.ProdId, __instance.PlayerPreview.GetIgnoreLongMode()))
+                if (!DestroyableSingleton<HatManager>.Instance.CheckLongModeValidCosmetic(visor.ProdId, __instance.PlayerPreview.GetIgnoreLongMode()))
                 {
                     colorChip.SetUnavailable();
                 }
             }
-
-            __instance.currentHatIsEquipped = true;
+            if (unlockedVisors.Length != 0)
+            {
+                __instance.GetDefaultSelectable().PlayerEquippedForeground.SetActive(true);
+            }
+            __instance.visorId = DataManager.Player.Customization.Visor;
+            __instance.currentVisorIsEquipped = true;
             __instance.SetScrollerBounds();
+
             return false;
         }
     }
