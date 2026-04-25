@@ -3,12 +3,12 @@
  *
  * Binary layout (all fields little-endian):
  *   Offset  0: uint32  Magic          = 0x434F5253 ("CORS" in ASCII)
- *   Offset  4: uint16  Version        = 1
+	 *   Offset  4: uint16  Version        = 1 (flat manifest) or 2 (grouped manifest)
  *   Offset  6: uint16  Flags          = 0 (reserved)
  *   Offset  8: uint32  ManifestLength = byte length of the UTF-8 JSON manifest
  *   Offset 12: uint32  DataLength     = total bytes of all appended image data
  *   --- end of 16-byte header ---
- *   Offset 16: [ManifestLength bytes] UTF-8 JSON matching BundleManifest shape
+ *   Offset 16: [ManifestLength bytes] UTF-8 JSON matching BundleManifest v1 or v2 shape
  *   Offset 16+ManifestLength: [DataLength bytes] raw concatenated PNG bytes
  *
  * Sprite Offset values in the manifest are relative to the start of the data section
@@ -17,8 +17,29 @@
  * This module is pure browser code — no Node/server APIs used.
  */
 
-import type { BundleManifest, HatEntry, HatManifest, VisorEntry, VisorManifest, NameplateEntry, NameplateManifest, SpriteData } from '$lib/types';
-import { SPRITE_SLOTS, VISOR_SPRITE_SLOTS, NAMEPLATE_SPRITE_SLOTS, createEmptySpriteData } from '$lib/types';
+import type {
+	BundleManifest,
+	BundleManifestV1,
+	BundleManifestV2,
+	BundleVersion,
+	BundleEditorGroup,
+	HatEntry,
+	HatManifest,
+	VisorEntry,
+	VisorManifest,
+	NameplateEntry,
+	NameplateManifest,
+	SpriteData,
+} from '$lib/types';
+import {
+	DEFAULT_BUNDLE_GROUP_NAME,
+	SPRITE_SLOTS,
+	VISOR_SPRITE_SLOTS,
+	NAMEPLATE_SPRITE_SLOTS,
+	createBundleManifest,
+	createBundleEditorGroup,
+	createEmptySpriteData,
+} from '$lib/types';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -26,8 +47,19 @@ import { SPRITE_SLOTS, VISOR_SPRITE_SLOTS, NAMEPLATE_SPRITE_SLOTS, createEmptySp
 
 export const BUNDLE_MAGIC = 0x434f5253; // 'CORS' in ASCII
 export const BUNDLE_VERSION = 1;
+export const BUNDLE_VERSION_V2 = 2;
+export const SUPPORTED_BUNDLE_VERSION = BUNDLE_VERSION_V2;
 export const HEADER_SIZE = 16;
 export const MAX_BUNDLE_SIZE_BYTES = 50 * 1024 * 1024; // 50 MB warning threshold
+
+export const BUNDLE_VERSION_DESCRIPTIONS: Record<BundleVersion, string> = {
+	1: 'Corsac v0.1.0',
+	2: 'Corsac v2',
+};
+
+export function describeBundleVersion(version: BundleVersion): string {
+	return `Bundle v${version} (${BUNDLE_VERSION_DESCRIPTIONS[version]})`;
+}
 
 // ---------------------------------------------------------------------------
 // Header read/write (little-endian DataView operations)
@@ -45,13 +77,13 @@ export interface BundleHeader {
  * Write the 16-byte bundle header into a new ArrayBuffer.
  * All fields are written little-endian to match C# BinaryPrimitives.WriteUInt*LittleEndian.
  */
-export function writeHeader(manifestLength: number, dataLength: number): ArrayBuffer {
+export function writeHeader(manifestLength: number, dataLength: number, version: BundleVersion = BUNDLE_VERSION): ArrayBuffer {
 	const buf = new ArrayBuffer(HEADER_SIZE);
 	const view = new DataView(buf);
 	// Offset  0: uint32 Magic
 	view.setUint32(0, BUNDLE_MAGIC, true);
 	// Offset  4: uint16 Version
-	view.setUint16(4, BUNDLE_VERSION, true);
+	view.setUint16(4, version, true);
 	// Offset  6: uint16 Flags (reserved = 0)
 	view.setUint16(6, 0, true);
 	// Offset  8: uint32 ManifestLength
@@ -87,8 +119,8 @@ export function validateHeader(header: BundleHeader): string | null {
 		const got = '0x' + header.magic.toString(16).toUpperCase().padStart(8, '0');
 		return `Invalid magic number: expected 0x434F5253 ("CORS"), got ${got}. This is not a valid .ccb file.`;
 	}
-	if (header.version === 0 || header.version > BUNDLE_VERSION) {
-		return `Unsupported bundle version: ${header.version}. This editor supports version 1 only.`;
+	if (header.version === 0 || header.version > SUPPORTED_BUNDLE_VERSION) {
+		return `Unsupported bundle version: ${header.version}. This editor supports Bundle v1 and Bundle v2.`;
 	}
 	return null;
 }
@@ -125,10 +157,10 @@ export function serializeManifest(manifest: BundleManifest): Uint8Array {
 /**
  * Deserialize a UTF-8 JSON byte range into a BundleManifest.
  */
-export function deserializeManifest(buffer: ArrayBuffer, offset: number, length: number): BundleManifest {
+export function deserializeManifest<TManifest extends BundleManifest = BundleManifest>(buffer: ArrayBuffer, offset: number, length: number): TManifest {
 	const slice = buffer.slice(offset, offset + length);
 	const json = decodeUtf8(slice);
-	return JSON.parse(json) as BundleManifest;
+	return JSON.parse(json) as TManifest;
 }
 
 // ---------------------------------------------------------------------------
@@ -155,125 +187,108 @@ export interface AssembledBundle {
  *  5. Write 16-byte header.
  *  6. Concatenate: header + manifestBytes + dataBytes → Blob.
  */
-export function assembleBundle(hats: HatEntry[], visors: VisorEntry[] = [], nameplates: NameplateEntry[] = []): AssembledBundle {
+export function assembleBundle(
+	hats: HatEntry[],
+	visors: VisorEntry[] = [],
+	nameplates: NameplateEntry[] = [],
+	bundleVersion: BundleVersion = BUNDLE_VERSION,
+	groups: BundleEditorGroup[] = []
+): AssembledBundle {
 	const warnings: string[] = [];
 
 	// --- Step 1 & 2: collect image bytes, compute offsets ---
 	const dataParts: Uint8Array[] = [];
 	let runningOffset = 0;
 
-	const resolvedHats: HatManifest[] = hats.map((hat) => {
-		const m = { ...hat.manifest };
+	const resolvedHats = hats.map((hat) => {
+		const manifest = { ...hat.manifest };
 
-		if (!m.Name || m.Name.trim() === '') {
+		if (!manifest.Name || manifest.Name.trim() === '') {
 			warnings.push(`A hat has an empty name — it will default to "Custom Hat".`);
-			m.Name = 'Custom Hat';
+			manifest.Name = 'Custom Hat';
 		}
 
 		for (const slot of SPRITE_SLOTS) {
 			const bytes = hat.imageBytes[slot];
 			if (bytes && bytes.byteLength > 0) {
-				m[slot] = { Size: bytes.byteLength, Offset: runningOffset } as SpriteData;
+				manifest[slot] = { Size: bytes.byteLength, Offset: runningOffset } as SpriteData;
 				dataParts.push(bytes);
 				runningOffset += bytes.byteLength;
 			} else {
-				m[slot] = createEmptySpriteData();
+				manifest[slot] = createEmptySpriteData();
 			}
 		}
-		return m;
+		return { manifest, groupId: hat.groupId };
 	});
 
-	// Check for duplicate hat names
-	const hatNameCounts = new Map<string, number>();
-	for (const h of resolvedHats) {
-		hatNameCounts.set(h.Name, (hatNameCounts.get(h.Name) ?? 0) + 1);
-	}
-	for (const [name, count] of hatNameCounts) {
-		if (count > 1) {
-			warnings.push(`Duplicate hat name "${name}" found ${count} times. The C# loader may overwrite duplicates.`);
-		}
-	}
+	const resolvedVisors = visors.map((visor) => {
+		const manifest = { ...visor.manifest };
 
-	const resolvedVisors: VisorManifest[] = visors.map((visor) => {
-		const m = { ...visor.manifest };
-
-		if (!m.Name || m.Name.trim() === '') {
+		if (!manifest.Name || manifest.Name.trim() === '') {
 			warnings.push(`A visor has an empty name — it will default to "Custom Visor".`);
-			m.Name = 'Custom Visor';
+			manifest.Name = 'Custom Visor';
 		}
 
 		for (const slot of VISOR_SPRITE_SLOTS) {
 			const bytes = visor.imageBytes[slot];
 			if (bytes && bytes.byteLength > 0) {
-				m[slot] = { Size: bytes.byteLength, Offset: runningOffset } as SpriteData;
+				manifest[slot] = { Size: bytes.byteLength, Offset: runningOffset } as SpriteData;
 				dataParts.push(bytes);
 				runningOffset += bytes.byteLength;
 			} else {
-				m[slot] = createEmptySpriteData();
+				manifest[slot] = createEmptySpriteData();
 			}
 		}
-		return m;
+		return { manifest, groupId: visor.groupId };
 	});
 
-	// Check for duplicate visor names
-	const visorNameCounts = new Map<string, number>();
-	for (const v of resolvedVisors) {
-		visorNameCounts.set(v.Name, (visorNameCounts.get(v.Name) ?? 0) + 1);
-	}
-	for (const [name, count] of visorNameCounts) {
-		if (count > 1) {
-			warnings.push(`Duplicate visor name "${name}" found ${count} times. The C# loader may overwrite duplicates.`);
-		}
-	}
+	const resolvedNameplates = nameplates.map((nameplate) => {
+		const manifest = { ...nameplate.manifest };
 
-	const resolvedNameplates: NameplateManifest[] = nameplates.map((nameplate) => {
-		const m = { ...nameplate.manifest };
-
-		if (!m.Name || m.Name.trim() === '') {
+		if (!manifest.Name || manifest.Name.trim() === '') {
 			warnings.push(`A nameplate has an empty name — it will default to "Custom Nameplate".`);
-			m.Name = 'Custom Nameplate';
+			manifest.Name = 'Custom Nameplate';
 		}
 
 		for (const slot of NAMEPLATE_SPRITE_SLOTS) {
 			const bytes = nameplate.imageBytes[slot];
 			if (bytes && bytes.byteLength > 0) {
-				m[slot] = { Size: bytes.byteLength, Offset: runningOffset } as SpriteData;
+				manifest[slot] = { Size: bytes.byteLength, Offset: runningOffset } as SpriteData;
 				dataParts.push(bytes);
 				runningOffset += bytes.byteLength;
 			} else {
-				m[slot] = createEmptySpriteData();
+				manifest[slot] = createEmptySpriteData();
 			}
 		}
-		return m;
+		return { manifest, groupId: nameplate.groupId };
 	});
 
-	// Check for duplicate nameplate names
-	const nameplateNameCounts = new Map<string, number>();
-	for (const n of resolvedNameplates) {
-		nameplateNameCounts.set(n.Name, (nameplateNameCounts.get(n.Name) ?? 0) + 1);
-	}
-	for (const [name, count] of nameplateNameCounts) {
-		if (count > 1) {
-			warnings.push(`Duplicate nameplate name "${name}" found ${count} times. The C# loader may overwrite duplicates.`);
-		}
-	}
-
 	const dataLength = runningOffset;
+	const resolvedGroups = normalizeEditorGroups(groups, resolvedHats, resolvedVisors, resolvedNameplates);
+	warnings.push(...collectGroupWarnings(resolvedGroups));
 
 	// --- Step 3: build manifest ---
-	const manifest: BundleManifest = {
-		Version: BUNDLE_VERSION,
-		Hats: resolvedHats,
-		Visors: resolvedVisors,
-		Nameplates: resolvedNameplates,
-	};
+	const manifest: BundleManifest = createBundleManifest(
+		bundleVersion,
+		resolvedHats.map((entry) => entry.manifest),
+		resolvedVisors.map((entry) => entry.manifest),
+		resolvedNameplates.map((entry) => entry.manifest),
+		bundleVersion === 2
+			? resolvedGroups.map((group) => ({
+				Name: group.name,
+				Hats: group.hats.map((entry) => entry.manifest),
+				Visors: group.visors.map((entry) => entry.manifest),
+				Nameplates: group.nameplates.map((entry) => entry.manifest),
+			}))
+			: []
+	);
 
 	// --- Step 4: serialize manifest ---
 	const manifestBytes = serializeManifest(manifest);
 	const manifestLength = manifestBytes.byteLength;
 
 	// --- Step 5: write header ---
-	const headerBuffer = writeHeader(manifestLength, dataLength);
+	const headerBuffer = writeHeader(manifestLength, dataLength, bundleVersion);
 
 	// --- Step 6: size warning ---
 	const totalSize = HEADER_SIZE + manifestLength + dataLength;
@@ -291,30 +306,101 @@ export function assembleBundle(hats: HatEntry[], visors: VisorEntry[] = [], name
 	return { blob, manifestLength, dataLength, warnings };
 }
 
+function normalizeEditorGroups(
+	groups: BundleEditorGroup[],
+	hats: Array<{ manifest: HatManifest; groupId: string }>,
+	visors: Array<{ manifest: VisorManifest; groupId: string }>,
+	nameplates: Array<{ manifest: NameplateManifest; groupId: string }>
+): Array<{
+	id: string;
+	name: string;
+	hats: Array<{ manifest: HatManifest; groupId: string }>;
+	visors: Array<{ manifest: VisorManifest; groupId: string }>;
+	nameplates: Array<{ manifest: NameplateManifest; groupId: string }>;
+}> {
+	const sourceGroups = groups.length > 0 ? groups : [createBundleEditorGroup(DEFAULT_BUNDLE_GROUP_NAME)];
+	const primaryGroupId = sourceGroups[0].id;
+	const groupIds = new Set(sourceGroups.map((group) => group.id));
+
+	const pickGroupId = (groupId: string) => (groupIds.has(groupId) ? groupId : primaryGroupId);
+
+	return sourceGroups.map((group) => ({
+		id: group.id,
+		name: group.name || DEFAULT_BUNDLE_GROUP_NAME,
+		hats: hats.filter((entry) => pickGroupId(entry.groupId) === group.id),
+		visors: visors.filter((entry) => pickGroupId(entry.groupId) === group.id),
+		nameplates: nameplates.filter((entry) => pickGroupId(entry.groupId) === group.id),
+	}));
+}
+
+function collectGroupWarnings(
+	groups: Array<{
+		name: string;
+		hats: Array<{ manifest: HatManifest }>;
+		visors: Array<{ manifest: VisorManifest }>;
+		nameplates: Array<{ manifest: NameplateManifest }>;
+	}>
+): string[] {
+	const warnings: string[] = [];
+	const groupNameCounts = new Map<string, number>();
+	for (const group of groups) {
+		groupNameCounts.set(group.name, (groupNameCounts.get(group.name) ?? 0) + 1);
+
+		const hatNameCounts = new Map<string, number>();
+		for (const hat of group.hats) hatNameCounts.set(hat.manifest.Name, (hatNameCounts.get(hat.manifest.Name) ?? 0) + 1);
+		for (const [name, count] of hatNameCounts) {
+			if (count > 1) warnings.push(`Duplicate hat name "${name}" found ${count} times in group "${group.name}".`);
+		}
+
+		const visorNameCounts = new Map<string, number>();
+		for (const visor of group.visors) visorNameCounts.set(visor.manifest.Name, (visorNameCounts.get(visor.manifest.Name) ?? 0) + 1);
+		for (const [name, count] of visorNameCounts) {
+			if (count > 1) warnings.push(`Duplicate visor name "${name}" found ${count} times in group "${group.name}".`);
+		}
+
+		const nameplateNameCounts = new Map<string, number>();
+		for (const nameplate of group.nameplates) nameplateNameCounts.set(nameplate.manifest.Name, (nameplateNameCounts.get(nameplate.manifest.Name) ?? 0) + 1);
+		for (const [name, count] of nameplateNameCounts) {
+			if (count > 1) warnings.push(`Duplicate nameplate name "${name}" found ${count} times in group "${group.name}".`);
+		}
+	}
+
+	for (const [name, count] of groupNameCounts) {
+		if (count > 1) warnings.push(`Duplicate group name "${name}" found ${count} times.`);
+	}
+
+	return warnings;
+}
+
 // ---------------------------------------------------------------------------
 // Bundle parsing (Open .ccb)
 // ---------------------------------------------------------------------------
 
 export interface ParsedHat {
 	manifest: HatManifest;
+	groupId: string;
 	/** Per-slot image bytes, sliced from the file buffer */
 	imageBytes: Partial<Record<(typeof SPRITE_SLOTS)[number], Uint8Array>>;
 }
 
 export interface ParsedVisor {
 	manifest: VisorManifest;
+	groupId: string;
 	/** Per-slot image bytes, sliced from the file buffer */
 	imageBytes: Partial<Record<(typeof VISOR_SPRITE_SLOTS)[number], Uint8Array>>;
 }
 
 export interface ParsedNameplate {
 	manifest: NameplateManifest;
+	groupId: string;
 	/** Per-slot image bytes, sliced from the file buffer */
 	imageBytes: Partial<Record<(typeof NAMEPLATE_SPRITE_SLOTS)[number], Uint8Array>>;
 }
 
 export interface ParsedBundle {
+	version: BundleVersion;
 	manifest: BundleManifest;
+	groups: BundleEditorGroup[];
 	hats: ParsedHat[];
 	visors: ParsedVisor[];
 	nameplates: ParsedNameplate[];
@@ -334,6 +420,7 @@ export function parseBundle(buffer: ArrayBuffer): ParsedBundle {
 	const header = readHeader(buffer);
 	const headerError = validateHeader(header);
 	if (headerError) throw new Error(headerError);
+	const version = header.version as BundleVersion;
 
 	const minExpectedSize = HEADER_SIZE + header.manifestLength + header.dataLength;
 	if (buffer.byteLength < minExpectedSize) {
@@ -342,86 +429,133 @@ export function parseBundle(buffer: ArrayBuffer): ParsedBundle {
 		);
 	}
 
-	// --- Parse manifest ---
-	const manifest = deserializeManifest(buffer, HEADER_SIZE, header.manifestLength);
-	if (!manifest.Hats || !Array.isArray(manifest.Hats)) {
-		throw new Error('Manifest is missing the "Hats" array.');
-	}
-	if (!manifest.Version || manifest.Version < 1 || manifest.Version > BUNDLE_VERSION) {
-		warnings.push(`Manifest Version field is ${manifest.Version}; expected 1.`);
-	}
-
-	// Data section starts at: HEADER_SIZE + manifestLength
+	// --- Parse manifest and extract sprite bytes ---
 	const dataStart = HEADER_SIZE + header.manifestLength;
-
-	// --- Extract sprite bytes per hat ---
-	const hats: ParsedHat[] = manifest.Hats.map((hatManifest) => {
-		const imageBytes: Partial<Record<(typeof SPRITE_SLOTS)[number], Uint8Array>> = {};
-
-		for (const slot of SPRITE_SLOTS) {
-			const sprite: SpriteData = hatManifest[slot] ?? { Size: 0, Offset: 0 };
-			if (sprite.Size > 0) {
-				// Slice from: dataStart + sprite.Offset, length: sprite.Size
-				const start = dataStart + sprite.Offset;
-				const end = start + sprite.Size;
-				if (end > buffer.byteLength) {
-					warnings.push(
-						`Hat "${hatManifest.Name}" sprite ${slot}: data range [${start}, ${end}) exceeds file size ${buffer.byteLength}. Skipping.`
-					);
-				} else {
-					imageBytes[slot] = new Uint8Array(buffer.slice(start, end));
-				}
-			}
+	if (version === BUNDLE_VERSION) {
+		const manifest = deserializeManifest<BundleManifestV1>(buffer, HEADER_SIZE, header.manifestLength);
+		if (!manifest.Hats || !Array.isArray(manifest.Hats)) {
+			throw new Error('Manifest is missing the "Hats" array.');
+		}
+		if (manifest.Version !== version) {
+			warnings.push(`Manifest Version field is ${manifest.Version}; expected 1.`);
 		}
 
-		return { manifest: hatManifest, imageBytes };
-	});
+		const group = createBundleEditorGroup(DEFAULT_BUNDLE_GROUP_NAME);
+		const hats: ParsedHat[] = manifest.Hats.map((hatManifest) => ({ ...extractHatBytes(hatManifest, buffer, dataStart, warnings), groupId: group.id }));
+		const visors: ParsedVisor[] = (manifest.Visors ?? []).map((visorManifest) => ({ ...extractVisorBytes(visorManifest, buffer, dataStart, warnings), groupId: group.id }));
+		const nameplates: ParsedNameplate[] = (manifest.Nameplates ?? []).map((nameplateManifest) => ({ ...extractNameplateBytes(nameplateManifest, buffer, dataStart, warnings), groupId: group.id }));
 
-	// --- Extract sprite bytes per visor ---
-	const visors: ParsedVisor[] = (manifest.Visors ?? []).map((visorManifest) => {
-		const imageBytes: Partial<Record<(typeof VISOR_SPRITE_SLOTS)[number], Uint8Array>> = {};
+		return { version, manifest, groups: [group], hats, visors, nameplates, warnings };
+	}
 
-		for (const slot of VISOR_SPRITE_SLOTS) {
-			const sprite: SpriteData = visorManifest[slot] ?? { Size: 0, Offset: 0 };
-			if (sprite.Size > 0) {
-				const start = dataStart + sprite.Offset;
-				const end = start + sprite.Size;
-				if (end > buffer.byteLength) {
-					warnings.push(
-						`Visor "${visorManifest.Name}" sprite ${slot}: data range [${start}, ${end}) exceeds file size ${buffer.byteLength}. Skipping.`
-					);
-				} else {
-					imageBytes[slot] = new Uint8Array(buffer.slice(start, end));
-				}
+	const manifest = deserializeManifest<BundleManifestV2>(buffer, HEADER_SIZE, header.manifestLength);
+	if (!manifest.Groups || !Array.isArray(manifest.Groups)) {
+		throw new Error('Manifest is missing the "Groups" array.');
+	}
+	if (manifest.Version !== version) {
+		warnings.push(`Manifest Version field is ${manifest.Version}; expected 2.`);
+	}
+	if (manifest.Groups.length > 1) {
+		warnings.push(`Bundle v2 contains ${manifest.Groups.length} groups.`);
+	}
+
+	const groups = manifest.Groups.map((group) => createBundleEditorGroup(group.Name || DEFAULT_BUNDLE_GROUP_NAME));
+	const hats: ParsedHat[] = [];
+	const visors: ParsedVisor[] = [];
+	const nameplates: ParsedNameplate[] = [];
+	for (let index = 0; index < manifest.Groups.length; index++) {
+		const groupManifest = manifest.Groups[index];
+		const groupId = groups[index].id;
+		for (const hatManifest of groupManifest.Hats ?? []) {
+			hats.push({ ...extractHatBytes(hatManifest, buffer, dataStart, warnings), groupId });
+		}
+		for (const visorManifest of groupManifest.Visors ?? []) {
+			visors.push({ ...extractVisorBytes(visorManifest, buffer, dataStart, warnings), groupId });
+		}
+		for (const nameplateManifest of groupManifest.Nameplates ?? []) {
+			nameplates.push({ ...extractNameplateBytes(nameplateManifest, buffer, dataStart, warnings), groupId });
+		}
+	}
+
+	return { version, manifest, groups, hats, visors, nameplates, warnings };
+}
+
+function extractHatBytes(
+	hatManifest: HatManifest,
+	buffer: ArrayBuffer,
+	dataStart: number,
+	warnings: string[]
+): ParsedHat {
+	const imageBytes: Partial<Record<(typeof SPRITE_SLOTS)[number], Uint8Array>> = {};
+
+	for (const slot of SPRITE_SLOTS) {
+		const sprite: SpriteData = hatManifest[slot] ?? { Size: 0, Offset: 0 };
+		if (sprite.Size > 0) {
+			const start = dataStart + sprite.Offset;
+			const end = start + sprite.Size;
+			if (end > buffer.byteLength) {
+				warnings.push(
+					`Hat "${hatManifest.Name}" sprite ${slot}: data range [${start}, ${end}) exceeds file size ${buffer.byteLength}. Skipping.`
+				);
+			} else {
+				imageBytes[slot] = new Uint8Array(buffer.slice(start, end));
 			}
 		}
+	}
 
-		return { manifest: visorManifest, imageBytes };
-	});
+	return { manifest: hatManifest, groupId: '', imageBytes };
+}
 
-	// --- Extract sprite bytes per nameplate ---
-	const nameplates: ParsedNameplate[] = (manifest.Nameplates ?? []).map((nameplateMeta) => {
-		const imageBytes: Partial<Record<(typeof NAMEPLATE_SPRITE_SLOTS)[number], Uint8Array>> = {};
+function extractVisorBytes(
+	visorManifest: VisorManifest,
+	buffer: ArrayBuffer,
+	dataStart: number,
+	warnings: string[]
+): ParsedVisor {
+	const imageBytes: Partial<Record<(typeof VISOR_SPRITE_SLOTS)[number], Uint8Array>> = {};
 
-		for (const slot of NAMEPLATE_SPRITE_SLOTS) {
-			const sprite: SpriteData = nameplateMeta[slot] ?? { Size: 0, Offset: 0 };
-			if (sprite.Size > 0) {
-				const start = dataStart + sprite.Offset;
-				const end = start + sprite.Size;
-				if (end > buffer.byteLength) {
-					warnings.push(
-						`Nameplate "${nameplateMeta.Name}" sprite ${slot}: data range [${start}, ${end}) exceeds file size ${buffer.byteLength}. Skipping.`
-					);
-				} else {
-					imageBytes[slot] = new Uint8Array(buffer.slice(start, end));
-				}
+	for (const slot of VISOR_SPRITE_SLOTS) {
+		const sprite: SpriteData = visorManifest[slot] ?? { Size: 0, Offset: 0 };
+		if (sprite.Size > 0) {
+			const start = dataStart + sprite.Offset;
+			const end = start + sprite.Size;
+			if (end > buffer.byteLength) {
+				warnings.push(
+					`Visor "${visorManifest.Name}" sprite ${slot}: data range [${start}, ${end}) exceeds file size ${buffer.byteLength}. Skipping.`
+				);
+			} else {
+				imageBytes[slot] = new Uint8Array(buffer.slice(start, end));
 			}
 		}
+	}
 
-		return { manifest: nameplateMeta, imageBytes };
-	});
+	return { manifest: visorManifest, groupId: '', imageBytes };
+}
 
-	return { manifest, hats, visors, nameplates, warnings };
+function extractNameplateBytes(
+	nameplateManifest: NameplateManifest,
+	buffer: ArrayBuffer,
+	dataStart: number,
+	warnings: string[]
+): ParsedNameplate {
+	const imageBytes: Partial<Record<(typeof NAMEPLATE_SPRITE_SLOTS)[number], Uint8Array>> = {};
+
+	for (const slot of NAMEPLATE_SPRITE_SLOTS) {
+		const sprite: SpriteData = nameplateManifest[slot] ?? { Size: 0, Offset: 0 };
+		if (sprite.Size > 0) {
+			const start = dataStart + sprite.Offset;
+			const end = start + sprite.Size;
+			if (end > buffer.byteLength) {
+				warnings.push(
+					`Nameplate "${nameplateManifest.Name}" sprite ${slot}: data range [${start}, ${end}) exceeds file size ${buffer.byteLength}. Skipping.`
+				);
+			} else {
+				imageBytes[slot] = new Uint8Array(buffer.slice(start, end));
+			}
+		}
+	}
+
+	return { manifest: nameplateManifest, groupId: '', imageBytes };
 }
 
 // ---------------------------------------------------------------------------

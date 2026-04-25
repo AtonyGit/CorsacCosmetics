@@ -9,9 +9,9 @@
 	 *  - Hat list management: add, delete, duplicate, reorder
 	 *  - Validation warnings (empty names, duplicates, large bundles)
 	 */
-	import type { HatEntry, SpriteSlot, VisorEntry, VisorSpriteSlot, NameplateEntry, NameplateSpriteSlot } from '$lib/types';
-	import { createHatEntry, createVisorEntry, createNameplateEntry } from '$lib/types';
-	import { assembleBundle, parseBundle, triggerDownload, createPreviewUrl, MAX_BUNDLE_SIZE_BYTES } from '$lib/utils/bundle';
+	import type { BundleVersion, BundleEditorGroup, HatEntry, SpriteSlot, VisorEntry, VisorSpriteSlot, NameplateEntry, NameplateSpriteSlot } from '$lib/types';
+	import { createBundleEditorGroup, createHatEntry, createVisorEntry, createNameplateEntry, DEFAULT_BUNDLE_GROUP_NAME } from '$lib/types';
+	import { assembleBundle, describeBundleVersion, parseBundle, triggerDownload, createPreviewUrl, MAX_BUNDLE_SIZE_BYTES } from '$lib/utils/bundle';
 	import HatEditor from '$lib/components/HatEditor.svelte';
 	import VisorEditor from '$lib/components/VisorEditor.svelte';
 	import NameplateEditor from '$lib/components/NameplateEditor.svelte';
@@ -25,11 +25,15 @@
 	let hats = $state<HatEntry[]>([]);
 	let visors = $state<VisorEntry[]>([]);
 	let nameplates = $state<NameplateEntry[]>([]);
+	let groups = $state<BundleEditorGroup[]>([]);
 	let statusMessage = $state<string>('');
 	let statusType = $state<'info' | 'success' | 'error' | 'warning'>('info');
 	let lastManifestLength = $state<number | null>(null);
 	let lastDataLength = $state<number | null>(null);
 	let isProcessing = $state(false);
+	let bundleVersion = $state<BundleVersion | null>(null);
+	let showBundleVersionPicker = $state(true);
+	let activeGroupId = $state('');
 
 	let openFileInput: HTMLInputElement;
 	let bundleFileName = $state('bundle.ccb');
@@ -48,11 +52,94 @@
 		statusMessage = '';
 	}
 
+	function syncActiveGroupId(nextGroups: BundleEditorGroup[]) {
+		if (nextGroups.length === 0) {
+			groups = [createBundleEditorGroup(DEFAULT_BUNDLE_GROUP_NAME)];
+			activeGroupId = groups[0].id;
+			return;
+		}
+
+		groups = nextGroups;
+		if (!groups.some((group) => group.id === activeGroupId)) {
+			activeGroupId = groups[0].id;
+		}
+	}
+
+	function initializeBundleGroups() {
+		syncActiveGroupId([createBundleEditorGroup(DEFAULT_BUNDLE_GROUP_NAME)]);
+	}
+
+	function getGroupName(groupId: string): string {
+		return groups.find((group) => group.id === groupId)?.name || DEFAULT_BUNDLE_GROUP_NAME;
+	}
+
+	function getActiveGroupName(): string {
+		return getGroupName(activeGroupId);
+	}
+
+	function addGroup() {
+		const baseName = `Group ${groups.length + 1}`;
+		const nextGroups = [...groups, createBundleEditorGroup(baseName)];
+		syncActiveGroupId(nextGroups);
+		setStatus(`Added ${baseName}.`, 'info');
+	}
+
+	function updateGroupName(groupId: string, name: string) {
+		groups = groups.map((group) => (group.id === groupId ? { ...group, name } : group));
+	}
+
+	function deleteGroup(groupId: string) {
+		if (groups.length <= 1) {
+			setStatus('At least one group must remain.', 'warning');
+			return;
+		}
+
+		const fallbackGroupId = groups.find((group) => group.id !== groupId)?.id ?? groups[0].id;
+		hats = hats.map((hat) => (hat.groupId === groupId ? { ...hat, groupId: fallbackGroupId } : hat));
+		visors = visors.map((visor) => (visor.groupId === groupId ? { ...visor, groupId: fallbackGroupId } : visor));
+		nameplates = nameplates.map((nameplate) => (nameplate.groupId === groupId ? { ...nameplate, groupId: fallbackGroupId } : nameplate));
+		syncActiveGroupId(groups.filter((group) => group.id !== groupId));
+		activeGroupId = fallbackGroupId;
+		setStatus('Group removed. Cosmetics were moved to the remaining group.', 'info');
+	}
+
+	function setActiveGroup(groupId: string) {
+		activeGroupId = groupId;
+	}
+
+	function changeEntryGroup<T extends { id: string; groupId: string }>(entries: T[], id: string, groupId: string): T[] {
+		return entries.map((entry) => (entry.id === id ? { ...entry, groupId } : entry));
+	}
+
+	function currentGroupId(): string {
+		return activeGroupId || groups[0]?.id || '';
+	}
+
+	function countGroupItems(groupId: string): number {
+		return (
+			hats.filter((hat) => hat.groupId === groupId).length +
+			visors.filter((visor) => visor.groupId === groupId).length +
+			nameplates.filter((nameplate) => nameplate.groupId === groupId).length
+		);
+	}
+
+	function selectBundleVersion(version: BundleVersion) {
+		bundleVersion = version;
+		showBundleVersionPicker = false;
+		initializeBundleGroups();
+		setStatus(`Selected ${describeBundleVersion(version)}.`, 'success');
+	}
+
 	// ---------------------------------------------------------------------------
 	// Hat list management
 	// ---------------------------------------------------------------------------
 
 	function newBundle() {
+		if (bundleVersion === null) {
+			showBundleVersionPicker = true;
+			return;
+		}
+
 		// Revoke all existing object URLs
 		for (const hat of hats) {
 			for (const url of Object.values(hat.previewUrls)) {
@@ -72,19 +159,25 @@
 		hats = [];
 		visors = [];
 		nameplates = [];
+		initializeBundleGroups();
 		lastManifestLength = null;
 		lastDataLength = null;
 		bundleFileName = 'bundle.ccb';
-		setStatus('New bundle created.', 'info');
+		setStatus(`New bundle created for ${describeBundleVersion(bundleVersion)}.`, 'info');
 	}
 
 	function addHat() {
-		hats = [...hats, createHatEntry()];
-		setStatus(`Added hat #${hats.length}.`, 'info');
+		const groupId = currentGroupId();
+		hats = [...hats, createHatEntry(undefined, groupId)];
+		setStatus(`Added hat to ${getGroupName(groupId)}.`, 'info');
 	}
 
 	function updateHat(id: string, updated: HatEntry) {
 		hats = hats.map((h) => (h.id === id ? updated : h));
+	}
+
+	function updateHatGroup(id: string, groupId: string) {
+		hats = changeEntryGroup(hats, id, groupId);
 	}
 
 	function deleteHat(id: string) {
@@ -113,7 +206,7 @@
 			...createHatEntry({
 				...src.manifest,
 				Name: src.manifest.Name + ' (Copy)',
-			}),
+			}, src.groupId),
 			imageBytes: { ...src.imageBytes },
 			previewUrls: newPreviewUrls,
 			fileNames: { ...src.fileNames },
@@ -144,12 +237,17 @@
 	// ---------------------------------------------------------------------------
 
 	function addVisor() {
-		visors = [...visors, createVisorEntry()];
-		setStatus(`Added visor #${visors.length}.`, 'info');
+		const groupId = currentGroupId();
+		visors = [...visors, createVisorEntry(undefined, groupId)];
+		setStatus(`Added visor to ${getGroupName(groupId)}.`, 'info');
 	}
 
 	function updateVisor(id: string, updated: VisorEntry) {
 		visors = visors.map((v) => (v.id === id ? updated : v));
+	}
+
+	function updateVisorGroup(id: string, groupId: string) {
+		visors = changeEntryGroup(visors, id, groupId);
 	}
 
 	function deleteVisor(id: string) {
@@ -177,7 +275,7 @@
 			...createVisorEntry({
 				...src.manifest,
 				Name: src.manifest.Name + ' (Copy)',
-			}),
+			}, src.groupId),
 			imageBytes: { ...src.imageBytes },
 			previewUrls: newPreviewUrls,
 			fileNames: { ...src.fileNames },
@@ -208,12 +306,17 @@
 	// ---------------------------------------------------------------------------
 
 	function addNameplate() {
-		nameplates = [...nameplates, createNameplateEntry()];
-		setStatus(`Added nameplate #${nameplates.length}.`, 'info');
+		const groupId = currentGroupId();
+		nameplates = [...nameplates, createNameplateEntry(undefined, groupId)];
+		setStatus(`Added nameplate to ${getGroupName(groupId)}.`, 'info');
 	}
 
 	function updateNameplate(id: string, updated: NameplateEntry) {
 		nameplates = nameplates.map((n) => (n.id === id ? updated : n));
+	}
+
+	function updateNameplateGroup(id: string, groupId: string) {
+		nameplates = changeEntryGroup(nameplates, id, groupId);
 	}
 
 	function deleteNameplate(id: string) {
@@ -241,7 +344,7 @@
 			...createNameplateEntry({
 				...src.manifest,
 				Name: src.manifest.Name + ' (Copy)',
-			}),
+			}, src.groupId),
 			imageBytes: { ...src.imageBytes },
 			previewUrls: newPreviewUrls,
 			fileNames: { ...src.fileNames },
@@ -312,6 +415,10 @@
 
 	async function downloadBundle() {
 		if (isProcessing) return;
+		if (bundleVersion === null) {
+			showBundleVersionPicker = true;
+			return;
+		}
 		isProcessing = true;
 		clearStatus();
 
@@ -322,7 +429,7 @@
 				// Don't block download, just warn
 			}
 
-			const result = assembleBundle(hats, visors, nameplates);
+			const result = assembleBundle(hats, visors, nameplates, bundleVersion, groups);
 
 			lastManifestLength = result.manifestLength;
 			lastDataLength = result.dataLength;
@@ -373,6 +480,9 @@
 
 			const buffer = await file.arrayBuffer();
 			const parsed = parseBundle(buffer);
+			bundleVersion = parsed.version;
+			showBundleVersionPicker = false;
+			syncActiveGroupId(parsed.groups);
 
 			// Revoke existing URLs
 			for (const hat of hats) {
@@ -394,7 +504,7 @@
 			}
 
 			// Reconstruct HatEntry list from parsed data
-			hats = parsed.hats.map(({ manifest, imageBytes }) => {
+			hats = parsed.hats.map(({ manifest, imageBytes, groupId }) => {
 				const previewUrls: Partial<Record<SpriteSlot, string>> = {};
 				const fileNames: Partial<Record<SpriteSlot, string>> = {};
 
@@ -405,6 +515,7 @@
 
 				return {
 					id: crypto.randomUUID(),
+					groupId,
 					manifest,
 					imageBytes,
 					previewUrls,
@@ -413,7 +524,7 @@
 			});
 
 			// Reconstruct VisorEntry list from parsed data
-			visors = parsed.visors.map(({ manifest, imageBytes }) => {
+			visors = parsed.visors.map(({ manifest, imageBytes, groupId }) => {
 				const previewUrls: Partial<Record<VisorSpriteSlot, string>> = {};
 				const fileNames: Partial<Record<VisorSpriteSlot, string>> = {};
 
@@ -424,6 +535,7 @@
 
 				return {
 					id: crypto.randomUUID(),
+					groupId,
 					manifest,
 					imageBytes,
 					previewUrls,
@@ -432,7 +544,7 @@
 			});
 
 			// Reconstruct NameplateEntry list from parsed data
-			nameplates = parsed.nameplates.map(({ manifest, imageBytes }) => {
+			nameplates = parsed.nameplates.map(({ manifest, imageBytes, groupId }) => {
 				const previewUrls: Partial<Record<NameplateSpriteSlot, string>> = {};
 				const fileNames: Partial<Record<NameplateSpriteSlot, string>> = {};
 
@@ -443,6 +555,7 @@
 
 				return {
 					id: crypto.randomUUID(),
+					groupId,
 					manifest,
 					imageBytes,
 					previewUrls,
@@ -457,11 +570,14 @@
 			const warnings = parsed.warnings;
 			if (warnings.length > 0) {
 				setStatus(
-					`Opened "${file.name}" with ${parsed.hats.length} hat(s), ${parsed.visors.length} visor(s), ${parsed.nameplates.length} nameplate(s). Warnings: ${warnings.join(' | ')}`,
+					`Opened "${file.name}" as ${describeBundleVersion(parsed.version)} with ${parsed.hats.length} hat(s), ${parsed.visors.length} visor(s), ${parsed.nameplates.length} nameplate(s). Warnings: ${warnings.join(' | ')}`,
 					'warning'
 				);
 			} else {
-				setStatus(`Opened "${file.name}" — ${parsed.hats.length} hat(s), ${parsed.visors.length} visor(s), ${parsed.nameplates.length} nameplate(s) loaded successfully.`, 'success');
+				setStatus(
+					`Opened "${file.name}" as ${describeBundleVersion(parsed.version)} — ${parsed.hats.length} hat(s), ${parsed.visors.length} visor(s), ${parsed.nameplates.length} nameplate(s) loaded successfully.`,
+					'success'
+				);
 			}
 		} catch (err) {
 			setStatus('Failed to open file: ' + (err instanceof Error ? err.message : String(err)), 'error');
@@ -475,13 +591,36 @@
 	<title>Corsac Cosmetics Bundle Editor</title>
 </svelte:head>
 
+{#if showBundleVersionPicker}
+	<div class="version-picker-backdrop" role="presentation">
+		<div class="version-picker" role="dialog" aria-modal="true" aria-labelledby="version-picker-title">
+			<p class="version-picker-kicker">Bundle format selection</p>
+			<h2 id="version-picker-title">Which bundle version should this editor use?</h2>
+			<p class="version-picker-copy">
+				Bundle v1 is for Corsac v0.1.0. Bundle v2 will be for Corsac v2.
+				Your choice controls new bundles, downloads, and the manifest preview.
+			</p>
+			<div class="version-picker-actions">
+				<button type="button" class="version-choice-btn" onclick={() => selectBundleVersion(1)}>
+					<span class="version-choice-title">Bundle v1</span>
+					<span class="version-choice-subtitle">Corsac v0.1.0</span>
+				</button>
+				<button type="button" class="version-choice-btn primary" onclick={() => selectBundleVersion(2)}>
+					<span class="version-choice-title">Bundle v2</span>
+					<span class="version-choice-subtitle">Corsac v2</span>
+				</button>
+			</div>
+		</div>
+	</div>
+{/if}
+
 <div class="page">
 	<!-- Toolbar -->
 	<header class="toolbar">
 		<div class="toolbar-brand">
 			<span class="brand-icon" aria-hidden="true">🎩</span>
 			<h1 class="brand-title">Corsac Cosmetics Bundle Editor</h1>
-			<span class="brand-badge">.ccb</span>
+			<span class="brand-badge">.ccb{bundleVersion !== null ? ` · v${bundleVersion}` : ''}</span>
 		</div>
 
 		<nav class="toolbar-actions" aria-label="Bundle actions">
@@ -542,6 +681,44 @@
 	<!-- Main content area -->
 	<main class="main-content">
 		<div class="editor-column">
+			{#if bundleVersion === 2}
+				<section class="group-panel">
+					<div class="group-panel-header">
+						<h3 class="panel-title">Groups</h3>
+						<button type="button" class="btn btn-secondary group-add-btn" onclick={addGroup}>+ Add Group</button>
+					</div>
+					<div class="group-list">
+						{#each groups as group (group.id)}
+							<button
+								type="button"
+								class="group-item"
+								class:active={activeGroupId === group.id}
+								onclick={() => setActiveGroup(group.id)}
+							>
+								<span class="group-item-name">{group.name || 'Unnamed Group'}</span>
+								<span class="group-item-count">{countGroupItems(group.id)}</span>
+							</button>
+						{/each}
+					</div>
+					<div class="group-editor-row">
+						<label class="group-name-field">
+							<span class="group-field-label">Selected Group</span>
+							<input
+								type="text"
+								class="group-name-input"
+								value={getGroupName(activeGroupId)}
+								oninput={(e) => updateGroupName(activeGroupId, (e.target as HTMLInputElement).value)}
+								aria-label="Group name"
+							/>
+						</label>
+						<button type="button" class="btn btn-danger group-delete-btn" onclick={() => deleteGroup(activeGroupId)} disabled={groups.length <= 1}>
+							Delete Group
+						</button>
+					</div>
+					<p class="group-note">New cosmetics are created in the selected group. Use each item’s dropdown to move it.</p>
+				</section>
+			{/if}
+
 			<!-- Tab bar -->
 			<div class="tab-bar">
 				<button
@@ -598,6 +775,8 @@
 								{index}
 								total={hats.length}
 								onupdate={updateHat}
+														groups={groups}
+														ongroupchange={updateHatGroup}
 								ondelete={deleteHat}
 								onduplicate={duplicateHat}
 								onmoveup={moveHatUp}
@@ -630,6 +809,8 @@
 								{index}
 								total={visors.length}
 								onupdate={updateVisor}
+														groups={groups}
+														ongroupchange={updateVisorGroup}
 								ondelete={deleteVisor}
 								onduplicate={duplicateVisor}
 								onmoveup={moveVisorUp}
@@ -662,6 +843,8 @@
 								{index}
 								total={nameplates.length}
 								onupdate={updateNameplate}
+														groups={groups}
+														ongroupchange={updateNameplateGroup}
 								ondelete={deleteNameplate}
 								onduplicate={duplicateNameplate}
 								onmoveup={moveNameplateUp}
@@ -678,7 +861,7 @@
 
 		<!-- Sidebar: stats + manifest preview -->
 		<aside class="sidebar">
-			<ManifestPreview {hats} {visors} {nameplates} {lastManifestLength} {lastDataLength} />
+			<ManifestPreview bundleVersion={bundleVersion ?? 1} {groups} {hats} {visors} {nameplates} {lastManifestLength} {lastDataLength} />
 
 			<!-- Format reference card -->
 			<div class="format-card">
@@ -694,13 +877,13 @@
 					</thead>
 					<tbody>
 						<tr><td>0</td><td>Magic</td><td>uint32 LE</td><td><code>0x434F5253</code></td></tr>
-						<tr><td>4</td><td>Version</td><td>uint16 LE</td><td><code>1</code></td></tr>
+						<tr><td>4</td><td>Version</td><td>uint16 LE</td><td><code>{bundleVersion ?? 1}</code></td></tr>
 						<tr><td>6</td><td>Flags</td><td>uint16 LE</td><td><code>0</code></td></tr>
 						<tr><td>8</td><td>ManifestLength</td><td>uint32 LE</td><td>JSON byte length</td></tr>
 						<tr><td>12</td><td>DataLength</td><td>uint32 LE</td><td>Total image bytes</td></tr>
-						<tr
-							><td>16</td><td>Manifest</td><td>UTF-8 JSON</td><td>BundleManifest</td></tr
-						>
+						<tr>
+							<td>16</td><td>Manifest</td><td>UTF-8 JSON</td><td>{bundleVersion === 2 ? 'BundleManifestV2' : 'BundleManifest'}</td>
+						</tr>
 						<tr
 							><td>16+M</td><td>Data</td><td>raw bytes</td><td>Concatenated PNGs</td></tr
 						>
@@ -710,6 +893,9 @@
 					Sprite <code>Offset</code> values are relative to the start of the Data section
 					(byte <code>16 + ManifestLength</code>).
 				</p>
+					<p class="format-note">
+						Selected format: <strong>{bundleVersion === null ? 'not chosen yet' : describeBundleVersion(bundleVersion)}</strong>.
+					</p>
 			</div>
 		</aside>
 	</main>
@@ -760,12 +946,100 @@
 
 	.brand-badge {
 		font-size: 0.65rem;
+		display: inline-flex;
+		align-items: center;
 		background-color: #4c1d95;
 		color: #c4b5fd;
 		padding: 0.1rem 0.4rem;
 		border-radius: 0.25rem;
 		font-weight: 700;
 		letter-spacing: 0.05em;
+	}
+
+	.version-picker-backdrop {
+		position: fixed;
+		inset: 0;
+		z-index: 1000;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		padding: 1rem;
+		background: rgba(15, 23, 42, 0.82);
+		backdrop-filter: blur(6px);
+	}
+
+	.version-picker {
+		width: min(100%, 44rem);
+		background: #111827;
+		border: 1px solid #374151;
+		border-radius: 1rem;
+		box-shadow: 0 30px 80px rgba(0, 0, 0, 0.45);
+		padding: 1.25rem;
+	}
+
+	.version-picker-kicker {
+		margin: 0 0 0.5rem;
+		font-size: 0.72rem;
+		font-weight: 700;
+		letter-spacing: 0.08em;
+		text-transform: uppercase;
+		color: #a78bfa;
+	}
+
+	.version-picker h2 {
+		margin: 0;
+		font-size: 1.25rem;
+		color: #f9fafb;
+	}
+
+	.version-picker-copy {
+		margin: 0.75rem 0 1rem;
+		color: #d1d5db;
+		line-height: 1.5;
+	}
+
+	.version-picker-actions {
+		display: grid;
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		gap: 0.75rem;
+	}
+
+	.version-choice-btn {
+		display: flex;
+		flex-direction: column;
+		align-items: flex-start;
+		gap: 0.25rem;
+		padding: 1rem;
+		border-radius: 0.75rem;
+		border: 1px solid #374151;
+		background: #1f2937;
+		color: #e5e7eb;
+		cursor: pointer;
+		text-align: left;
+		transition:
+			transform 0.15s,
+			border-color 0.15s,
+			background-color 0.15s;
+	}
+
+	.version-choice-btn:hover {
+		transform: translateY(-1px);
+		border-color: #6b7280;
+	}
+
+	.version-choice-btn.primary {
+		background: linear-gradient(180deg, #4c1d95 0%, #312e81 100%);
+		border-color: #7c3aed;
+	}
+
+	.version-choice-title {
+		font-size: 1rem;
+		font-weight: 700;
+	}
+
+	.version-choice-subtitle {
+		font-size: 0.8rem;
+		color: #cbd5e1;
 	}
 
 	.toolbar-actions {
@@ -833,6 +1107,132 @@
 	.btn-secondary:hover:not(:disabled) {
 		background-color: #374151;
 		color: #f3f4f6;
+	}
+
+	.btn-danger {
+		background-color: #7f1d1d;
+		color: #fecaca;
+		border: 1px solid #991b1b;
+	}
+
+	.btn-danger:hover:not(:disabled) {
+		background-color: #991b1b;
+		color: #fff;
+	}
+
+	.group-panel {
+		background-color: #111827;
+		border: 1px solid #374151;
+		border-radius: 0.75rem;
+		padding: 0.875rem;
+		display: flex;
+		flex-direction: column;
+		gap: 0.75rem;
+		margin-bottom: 0.875rem;
+	}
+
+	.group-panel-header {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		gap: 0.5rem;
+	}
+
+	.panel-title {
+		margin: 0;
+		font-size: 0.8rem;
+		font-weight: 700;
+		text-transform: uppercase;
+		letter-spacing: 0.08em;
+		color: #9ca3af;
+	}
+
+	.group-list {
+		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+		gap: 0.5rem;
+	}
+
+	.group-item {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		gap: 0.5rem;
+		padding: 0.55rem 0.75rem;
+		border-radius: 0.5rem;
+		border: 1px solid #374151;
+		background-color: #1f2937;
+		color: #d1d5db;
+		cursor: pointer;
+		text-align: left;
+	}
+
+	.group-item.active {
+		border-color: #7c3aed;
+		background-color: #312e81;
+		color: #f9fafb;
+	}
+
+	.group-item-name {
+		font-size: 0.8rem;
+		font-weight: 600;
+		min-width: 0;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+
+	.group-item-count {
+		font-size: 0.65rem;
+		font-weight: 700;
+		color: #9ca3af;
+		background-color: rgba(15, 23, 42, 0.75);
+		border-radius: 9999px;
+		padding: 0.1rem 0.4rem;
+		flex-shrink: 0;
+	}
+
+	.group-editor-row {
+		display: flex;
+		align-items: flex-end;
+		gap: 0.75rem;
+		flex-wrap: wrap;
+	}
+
+	.group-name-field {
+		display: flex;
+		flex-direction: column;
+		gap: 0.25rem;
+		flex: 1;
+		min-width: 14rem;
+	}
+
+	.group-field-label {
+		font-size: 0.7rem;
+		font-weight: 700;
+		color: #9ca3af;
+		text-transform: uppercase;
+		letter-spacing: 0.05em;
+	}
+
+	.group-name-input {
+		background-color: #1f2937;
+		border: 1px solid #374151;
+		border-radius: 0.375rem;
+		color: #f3f4f6;
+		font-size: 0.8rem;
+		padding: 0.45rem 0.55rem;
+		outline: none;
+	}
+
+	.group-name-input:focus {
+		border-color: #7c3aed;
+	}
+
+	.group-note {
+		margin: 0;
+		font-size: 0.7rem;
+		color: #9ca3af;
 	}
 
 	.btn-add {

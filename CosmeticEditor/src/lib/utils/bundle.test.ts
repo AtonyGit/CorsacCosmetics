@@ -4,17 +4,18 @@
  * Covers:
  *  1. Header encoding (writeHeader) produces correct little-endian bytes.
  *  2. Header decoding (readHeader) round-trips correctly.
- *  3. validateHeader rejects wrong magic and unsupported versions.
+ *  3. validateHeader accepts v1/v2 and rejects wrong magic / unsupported versions.
  *  4. Manifest serialize/deserialize round-trip preserves all PascalCase fields.
  *  5. assembleBundle + parseBundle full round-trip: create bundle → re-open → assert equality.
  *  6. parseBundle throws a descriptive error for corrupt magic.
- *  7. parseBundle throws for unsupported version > 1.
+ *  7. parseBundle throws for unsupported version > 2.
  */
 
 import { describe, it, expect } from 'vitest';
 import {
 	BUNDLE_MAGIC,
 	BUNDLE_VERSION,
+	BUNDLE_VERSION_V2,
 	HEADER_SIZE,
 	writeHeader,
 	readHeader,
@@ -24,8 +25,8 @@ import {
 	assembleBundle,
 	parseBundle,
 } from './bundle';
-import type { BundleManifest } from '../types';
-import { createHatEntry, SPRITE_SLOTS } from '../types';
+import type { BundleManifest, BundleManifestV1, BundleManifestV2 } from '../types';
+import { createHatEntry, createBundleGroupManifest } from '../types';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -73,6 +74,12 @@ describe('writeHeader', () => {
 		const buf = writeHeader(0, 0);
 		const view = new DataView(buf);
 		expect(view.getUint16(4, true)).toBe(BUNDLE_VERSION);
+	});
+
+	it('encodes version 2 at offset 4 (LE) when requested', () => {
+		const buf = writeHeader(0, 0, BUNDLE_VERSION_V2);
+		const view = new DataView(buf);
+		expect(view.getUint16(4, true)).toBe(BUNDLE_VERSION_V2);
 	});
 
 	it('encodes flags 0 at offset 6 (LE)', () => {
@@ -146,13 +153,19 @@ describe('validateHeader', () => {
 		expect(err).toContain('version');
 	});
 
-	it('returns error string for version > 1', () => {
+	it('returns error string for version > 2', () => {
 		const buf = writeHeader(0, 0);
 		const view = new DataView(buf);
 		view.setUint16(4, 99, true);
 		const header = readHeader(buf);
 		const err = validateHeader(header);
 		expect(err).not.toBeNull();
+	});
+
+	it('accepts version 2 headers', () => {
+		const buf = writeHeader(0, 0, BUNDLE_VERSION_V2);
+		const header = readHeader(buf);
+		expect(validateHeader(header)).toBeNull();
 	});
 });
 
@@ -161,7 +174,7 @@ describe('validateHeader', () => {
 // ---------------------------------------------------------------------------
 
 describe('manifest serialization', () => {
-	const sampleManifest: BundleManifest = {
+	const sampleManifest: BundleManifestV1 = {
 		Version: 1,
 		Hats: [
 			{
@@ -180,6 +193,32 @@ describe('manifest serialization', () => {
 				LeftClimbSprite: { Size: 0, Offset: 0 },
 				LeftFloorSprite: { Size: 0, Offset: 0 },
 			},
+		],
+		Visors: [],
+		Nameplates: [],
+	};
+
+	const sampleManifestV2: BundleManifestV2 = {
+		Version: 2,
+		Groups: [
+			createBundleGroupManifest('Custom Cosmetics', [
+				{
+					Name: 'Test Hat',
+					MatchPlayerColor: true,
+					BlocksVisors: false,
+					InFront: true,
+					NoBounce: false,
+					PreviewSprite: { Size: 100, Offset: 0 },
+					MainSprite: { Size: 200, Offset: 100 },
+					BackSprite: { Size: 0, Offset: 0 },
+					ClimbSprite: { Size: 0, Offset: 0 },
+					FloorSprite: { Size: 0, Offset: 0 },
+					LeftMainSprite: { Size: 0, Offset: 0 },
+					LeftBackSprite: { Size: 0, Offset: 0 },
+					LeftClimbSprite: { Size: 0, Offset: 0 },
+					LeftFloorSprite: { Size: 0, Offset: 0 },
+				},
+			]),
 		],
 	};
 
@@ -203,14 +242,27 @@ describe('manifest serialization', () => {
 
 	it('deserializes back to identical manifest', () => {
 		const bytes = serializeManifest(sampleManifest);
-		const buf = bytes.buffer;
-		const parsed = deserializeManifest(buf, 0, bytes.byteLength);
+		const buf = bytes.buffer as ArrayBuffer;
+		const parsed = deserializeManifest<BundleManifestV1>(buf, 0, bytes.byteLength);
 		expect(parsed.Version).toBe(sampleManifest.Version);
 		expect(parsed.Hats.length).toBe(1);
 		expect(parsed.Hats[0].Name).toBe('Test Hat');
 		expect(parsed.Hats[0].MatchPlayerColor).toBe(true);
 		expect(parsed.Hats[0].MainSprite.Size).toBe(200);
 		expect(parsed.Hats[0].MainSprite.Offset).toBe(100);
+	});
+
+	it('serializes and deserializes Bundle v2 grouped manifests', () => {
+		const bytes = serializeManifest(sampleManifestV2);
+		const json = new TextDecoder().decode(bytes);
+		expect(json).toContain('"Groups"');
+		expect(json).toContain('"Custom Cosmetics"');
+
+		const parsed = deserializeManifest<BundleManifestV2>(bytes.buffer as ArrayBuffer, 0, bytes.byteLength);
+		expect(parsed.Version).toBe(2);
+		expect(parsed.Groups).toHaveLength(1);
+		expect(parsed.Groups[0].Name).toBe('Custom Cosmetics');
+		expect(parsed.Groups[0].Hats).toHaveLength(1);
 	});
 });
 
@@ -256,6 +308,26 @@ describe('full bundle round-trip', () => {
 		// Verify sprite byte lengths match
 		expect(h.imageBytes['PreviewSprite']?.byteLength).toBe(png1.byteLength);
 		expect(h.imageBytes['MainSprite']?.byteLength).toBe(png2.byteLength);
+	});
+
+	it('assembles and parses Bundle v2 with a single default group', async () => {
+		const png = makeMinimalPng();
+		const hat = createHatEntry();
+		hat.manifest.Name = 'V2 Hat';
+		hat.imageBytes['PreviewSprite'] = png;
+
+		const { blob, manifestLength, dataLength } = assembleBundle([hat], [], [], 2);
+		const buffer = await blob.arrayBuffer();
+
+		expect(buffer.byteLength).toBe(HEADER_SIZE + manifestLength + dataLength);
+
+		const parsed = parseBundle(buffer);
+		expect(parsed.version).toBe(2);
+		expect(parsed.manifest.Version).toBe(2);
+		expect('Groups' in parsed.manifest).toBe(true);
+		expect(parsed.hats).toHaveLength(1);
+		expect(parsed.hats[0].manifest.Name).toBe('V2 Hat');
+		expect(parsed.hats[0].imageBytes['PreviewSprite']?.byteLength).toBe(png.byteLength);
 	});
 
 	it('correctly handles a hat with no sprites (all Size=0, Offset=0)', async () => {
@@ -317,7 +389,7 @@ describe('parseBundle error handling', () => {
 		expect(() => parseBundle(buf)).toThrow(/magic/i);
 	});
 
-	it('throws on unsupported version > 1', async () => {
+	it('throws on unsupported version > 2', async () => {
 		const hat = createHatEntry();
 		const { blob } = assembleBundle([hat]);
 		const buf = await blob.arrayBuffer();

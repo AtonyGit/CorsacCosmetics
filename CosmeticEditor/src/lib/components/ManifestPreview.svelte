@@ -6,11 +6,13 @@
 	 * - ManifestLength and DataLength from the last download
 	 * - A pretty-printed manifest JSON preview
 	 */
-	import type { HatEntry, VisorEntry, NameplateEntry } from '$lib/types';
-	import { SPRITE_SLOTS, VISOR_SPRITE_SLOTS, NAMEPLATE_SPRITE_SLOTS } from '$lib/types';
-	import { BUNDLE_VERSION, HEADER_SIZE, serializeManifest } from '$lib/utils/bundle';
+	import type { BundleVersion, BundleEditorGroup, HatEntry, VisorEntry, NameplateEntry } from '$lib/types';
+	import { SPRITE_SLOTS, VISOR_SPRITE_SLOTS, NAMEPLATE_SPRITE_SLOTS, createBundleManifest } from '$lib/types';
+	import { HEADER_SIZE, describeBundleVersion, serializeManifest } from '$lib/utils/bundle';
 
 	interface Props {
+		bundleVersion: BundleVersion;
+		groups: BundleEditorGroup[];
 		hats: HatEntry[];
 		visors: VisorEntry[];
 		nameplates: NameplateEntry[];
@@ -18,7 +20,7 @@
 		lastDataLength: number | null;
 	}
 
-	let { hats, visors, nameplates, lastManifestLength, lastDataLength }: Props = $props();
+	let { bundleVersion, groups, hats, visors, nameplates, lastManifestLength, lastDataLength }: Props = $props();
 
 	let showJson = $state(false);
 
@@ -65,12 +67,20 @@
 	/** Live estimated manifest size (before download is triggered) */
 	const estimatedManifestLength = $derived.by(() => {
 		if (hats.length === 0 && visors.length === 0 && nameplates.length === 0) return 0;
-		const manifest = {
-			Version: BUNDLE_VERSION,
-			Hats: hats.map((hat) => ({ ...hat.manifest })),
-			Visors: visors.map((visor) => ({ ...visor.manifest })),
-			Nameplates: nameplates.map((np) => ({ ...np.manifest })),
-		};
+		const manifest = createBundleManifest(
+			bundleVersion,
+			hats.map((hat) => ({ ...hat.manifest })),
+			visors.map((visor) => ({ ...visor.manifest })),
+			nameplates.map((np) => ({ ...np.manifest })),
+			bundleVersion === 2
+				? groups.map((group) => ({
+					Name: group.name,
+					Hats: hats.filter((hat) => hat.groupId === group.id).map((hat) => ({ ...hat.manifest })),
+					Visors: visors.filter((visor) => visor.groupId === group.id).map((visor) => ({ ...visor.manifest })),
+					Nameplates: nameplates.filter((nameplate) => nameplate.groupId === group.id).map((nameplate) => ({ ...nameplate.manifest })),
+				}))
+				: []
+		);
 		try {
 			return serializeManifest(manifest).byteLength;
 		} catch {
@@ -106,6 +116,10 @@
 		<div class="stat-item">
 			<span class="stat-label">Nameplates</span>
 			<span class="stat-value">{nameplates.length}</span>
+		</div>
+		<div class="stat-item highlight">
+			<span class="stat-label">Bundle Version</span>
+			<span class="stat-value">{describeBundleVersion(bundleVersion)}</span>
 		</div>
 		<div class="stat-item">
 			<span class="stat-label">Sprites</span>
@@ -145,10 +159,20 @@
 		<div class="json-section">
 			<pre class="json-block">{JSON.stringify(
 					{
-						Version: BUNDLE_VERSION,
-						Hats: hats.map((h) => h.manifest),
-						Visors: visors.map((v) => v.manifest),
-						Nameplates: nameplates.map((n) => n.manifest),
+						...createBundleManifest(
+							bundleVersion,
+							hats.map((h) => h.manifest),
+							visors.map((v) => v.manifest),
+							nameplates.map((n) => n.manifest),
+							bundleVersion === 2
+								? groups.map((group) => ({
+									Name: group.name,
+									Hats: hats.filter((hat) => hat.groupId === group.id).map((hat) => hat.manifest),
+									Visors: visors.filter((visor) => visor.groupId === group.id).map((visor) => visor.manifest),
+									Nameplates: nameplates.filter((nameplate) => nameplate.groupId === group.id).map((nameplate) => nameplate.manifest),
+								}))
+								: []
+						),
 					},
 					null,
 					2

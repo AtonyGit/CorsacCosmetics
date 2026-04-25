@@ -8,7 +8,7 @@
 	 *  - Preview panel showing the main/preview sprites
 	 *  - Reorder, duplicate, and delete controls
 	 */
-	import type { HatEntry, SpriteSlot } from '$lib/types';
+	import type { BundleEditorGroup, HatEntry, SpriteSlot } from '$lib/types';
 	import { createPreviewUrl } from '$lib/utils/bundle';
 	import SpriteUploader from './SpriteUploader.svelte';
 
@@ -21,9 +21,11 @@
 		onduplicate: (id: string) => void;
 		onmoveup: (id: string) => void;
 		onmovedown: (id: string) => void;
+		groups: BundleEditorGroup[];
+		ongroupchange: (id: string, groupId: string) => void;
 	}
 
-	let { hat, index, total, onupdate, ondelete, onduplicate, onmoveup, onmovedown }: Props = $props();
+	let { hat, index, total, onupdate, ondelete, onduplicate, onmoveup, onmovedown, groups, ongroupchange }: Props = $props();
 
 	let isCollapsed = $state(false);
 
@@ -62,6 +64,10 @@
 		delete fileNames[slot];
 
 		onupdate(hat.id, { ...hat, imageBytes, previewUrls, fileNames });
+	}
+
+	function handleGroupChange(event: Event) {
+		ongroupchange(hat.id, (event.target as HTMLSelectElement).value);
 	}
 
 	const toggles = [
@@ -118,6 +124,16 @@
 			{/if}
 		</div>
 		<div class="hat-header-right">
+			{#if groups.length > 1}
+				<label class="group-select-wrapper" title="Move to group">
+					<span class="sr-only">Group</span>
+					<select class="group-select" value={hat.groupId} onchange={handleGroupChange} aria-label="Hat group">
+						{#each groups as group (group.id)}
+							<option value={group.id}>{group.name}</option>
+						{/each}
+					</select>
+				</label>
+			{/if}
 			<button type="button" class="icon-btn" onclick={() => onmoveup(hat.id)} disabled={index === 0} title="Move up">↑</button>
 			<button type="button" class="icon-btn" onclick={() => onmovedown(hat.id)} disabled={index === total - 1} title="Move down">↓</button>
 			<button type="button" class="icon-btn" onclick={() => onduplicate(hat.id)} title="Duplicate">⧉</button>
@@ -253,6 +269,21 @@
 
 	.header-name-input:focus { border-color: #7c3aed; }
 	.header-name-input.input-error { border-color: #ef4444; }
+
+	.group-select-wrapper {
+		display: flex;
+		align-items: center;
+	}
+
+	.group-select {
+		background-color: #111827;
+		border: 1px solid #374151;
+		border-radius: 0.3rem;
+		color: #d1d5db;
+		font-size: 0.7rem;
+		padding: 0.15rem 0.35rem;
+		max-width: 8rem;
+	}
 
 	.validation-badge {
 		font-size: 0.6rem;
