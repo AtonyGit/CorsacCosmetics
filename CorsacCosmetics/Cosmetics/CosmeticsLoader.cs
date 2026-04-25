@@ -9,6 +9,7 @@ using CorsacCosmetics.Cosmetics.Nameplates;
 using CorsacCosmetics.Cosmetics.Visors;
 using CorsacCosmetics.Unity;
 using Il2CppInterop.Runtime;
+using Il2CppSystem.IO;
 using UnityEngine;
 using UnityEngine.ResourceManagement.ResourceProviders;
 
@@ -23,11 +24,12 @@ public class CosmeticsLoader
 
     public Il2CppSystem.Collections.Generic.IEnumerable<Il2CppSystem.Object> EmptyKeys { get; }
 
-    public CosmeticReleaseGroup CosmeticGroup { get; }
+    private CosmeticReleaseGroup CosmeticGroup { get; }
 
     // ID -> Name
-    public Dictionary<string, string> CustomGroups { get; }
+    private Dictionary<string, string> CustomGroups { get; }
 
+    // used to prevent groups with empty # of certain elements showing in inventory
     public List<string> HatGroups { get; } = [];
     public List<string> VisorGroups { get; } = [];
     public List<string> NameplateGroups { get; } = [];
@@ -49,8 +51,7 @@ public class CosmeticsLoader
         CustomGroups.Add("default", "Custom Cosmetics");
 
         _bundleLoader = new BundleLoader(HatLoader, VisorLoader, NameplateLoader);
-        _bundleLoaderV2 = new BundleLoaderV2(HatLoader, VisorLoader, NameplateLoader, 
-            CustomGroups, HatGroups, VisorGroups, NameplateGroups);
+        _bundleLoaderV2 = new BundleLoaderV2(HatLoader, VisorLoader, NameplateLoader, CustomGroups);
     }
 
     public string GetHatGroupIdByIndex(int index)
@@ -65,47 +66,75 @@ public class CosmeticsLoader
 
     public void LoadCosmetics()
     {
-        Info("Loading V1 bundles...");
-        _bundleLoader.LoadBundles(CosmeticPaths.BundlePath);
+        Info("Loading bundles...");
+        foreach (var file in Directory.GetFiles(CosmeticPaths.BundlePath, "*.ccb"))
+        {
+            if (file == null) continue;
+            var v1Loaded = false;
+            try
+            {
+                v1Loaded = _bundleLoader.LoadBundle(file);
+            }
+            catch (Exception e)
+            {
+                Error($"Error while loading bundle {file} with v1 loader:\n{e}");
+            }
+
+            if (v1Loaded)
+            {
+                continue;
+            }
+
+            try
+            {
+                _bundleLoaderV2.LoadBundle(file);
+            }
+            catch (Exception e)
+            {
+                Error($"Error while loading bundle {file} with v2 loader:\n{e}");
+            }
+        }
 
         Info("Loading hats...");
         HatLoader.LoadCosmetics(CosmeticPaths.HatPath);
-        foreach (var id in HatLoader.CustomHats.Keys)
-        {
-            CosmeticGroup.ids.Add(id);
-        }
 
         Info("Loading visors...");
         VisorLoader.LoadCosmetics(CosmeticPaths.VisorPath);
-        foreach (var id in VisorLoader.CustomVisors.Keys)
-        {
-            CosmeticGroup.ids.Add(id);
-        }
 
         Info("Loading nameplates...");
         NameplateLoader.LoadCosmetics(CosmeticPaths.NameplatePath);
-        foreach (var id in NameplateLoader.CustomNamePlates.Keys)
+
+        Info("Setting up cosmetic group...");
+        foreach (var id in HatLoader.CustomHats.Keys)
         {
+            var group = Names.GetGroup(id);
+            if (!HatGroups.Contains(group))
+            { 
+                HatGroups.Add(group);
+            }
+
             CosmeticGroup.ids.Add(id);
         }
-
-        if (HatLoader.CustomHats.Count > 0)
+        foreach (var id in VisorLoader.CustomVisors.Keys)
         {
-            HatGroups.Add("default");
-        }
+            var group = Names.GetGroup(id);
+            if (!VisorGroups.Contains(group))
+            {
+                VisorGroups.Add(group);
+            }
 
-        if (VisorLoader.CustomVisors.Count > 0)
+            CosmeticGroup.ids.Add(id);
+        }
+        foreach (var id in NameplateLoader.CustomNamePlates.Keys)
         {
-            VisorGroups.Add("default");
-        }
+            var group = Names.GetGroup(id);
+            if (!NameplateGroups.Contains(group))
+            {
+                NameplateGroups.Add(group);
+            }
 
-        if (NameplateLoader.CustomNamePlates.Count > 0)
-        {
-            NameplateGroups.Add("default");
+            CosmeticGroup.ids.Add(id);
         }
-
-        Info("Loading V2 bundles...");
-        _bundleLoaderV2.LoadBundles(CosmeticPaths.BundlePath);
     }
 
     public void InstallCosmetics(ReferenceData referenceData)

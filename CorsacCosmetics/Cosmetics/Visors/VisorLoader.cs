@@ -154,6 +154,7 @@ public class VisorLoader : BaseLoader
         visorData.Free = true;
         visorData.ProductId = fullId;
         visorData.behindHats = metadata.BehindHats;
+        visorData.PreviewCrewmateColor = metadata.MatchPlayerColor;
         visorData.ViewDataRef = new AssetReference(HatLocator.GetGuid(fullId, ReferenceType.VisorViewData));
         visorData.PreviewData = new AssetReference(HatLocator.GetGuid(fullId, ReferenceType.Preview));
 

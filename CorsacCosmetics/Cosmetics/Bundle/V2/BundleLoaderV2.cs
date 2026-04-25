@@ -16,33 +16,15 @@ public class BundleLoaderV2(
     HatLoader hatLoader, 
     VisorLoader visorLoader, 
     NameplateLoader nameplateLoader,
-    Dictionary<string, string> groupNames,
-    List<string> hatGroups,
-    List<string> visorGroups,
-    List<string> nameplateGroups
+    Dictionary<string, string> groupNames
     )
 {
-    public void LoadBundles(string directory)
-    {
-        foreach (var file in Directory.GetFiles(directory, "*.ccb"))
-        {
-            try
-            {
-                Info($"Loading bundle from {file}");
-                LoadBundle(file);
-            }
-            catch (Exception e)
-            {
-                Error($"Error loading bundle from {file}:\n{e}");
-            }
-        }
-    }
-
-    public void LoadBundle(string file)
+    public bool LoadBundle(string file)
     {
         if (!File.Exists(file))
         {
-            throw new FileNotFoundException();
+            Error($"Bundle file {file} does not exist! Skipping bundle.");
+            return false;
         }
 
         using var fs = new FileStream(file, FileMode.Open, FileAccess.Read);
@@ -51,27 +33,27 @@ public class BundleLoaderV2(
         if (!header.IsValid)
         {
             Error($"File {file} is not a valid bundle. Skipping bundle.");
-            return;
+            return false;
         }
 
         if (!header.IsSupportedVersion)
         {
             Error($"Bundle version {header.Version} is not supported. Skipping bundle.");
-            return;
+            return false;
         }
 
         var manifestBytes = new byte[header.ManifestLength];
         if (fs.Read(manifestBytes.AsSpan()) != header.ManifestLength)
         {
             Error($"Could not read the full manifest from {file}. Skipping bundle.");
-            return;
+            return false;
         }
 
         var manifest = JsonSerializer.Deserialize<BundleManifestV2>(manifestBytes);
         if (manifest.Groups == null)
         {
             Error($"Manifest in {file} does not contain any groups. Skipping bundle.");
-            return;
+            return false;
         }
 
         var start = fs.Position;
@@ -88,21 +70,6 @@ public class BundleLoaderV2(
             else
             {
                 groupNames[name] = group.Name;
-
-                if (group.Hats.Length > 0)
-                {
-                    hatGroups.Add(name);
-                }
-
-                if (group.Visors.Length > 0)
-                {
-                    visorGroups.Add(name);
-                }
-
-                if (group.Nameplates.Length > 0)
-                {
-                    nameplateGroups.Add(name);
-                }
             }
             
             foreach (var hatManifest in group.Hats)
@@ -123,6 +90,8 @@ public class BundleLoaderV2(
                 Info($"Loaded {nameplateManifest.Name} from bundle");
             }
         }
+
+        return true;
     }
 
     private void LoadHat(HatManifest manifest, FileStream fs, long start, string groupName)

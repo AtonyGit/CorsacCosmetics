@@ -27,8 +27,7 @@ public static class HatsTabPatches
 
         if (!id.StartsWith("corsac")) return false;
         
-        var parts = id.Split('.');
-        var group = parts[1];
+        var group = Names.GetGroup(id);
         var currentGroup = CosmeticsLoader.Instance.GetHatGroupIdByIndex(_pagination.CurrentTab - 1);
 
         return currentGroup == group;
@@ -76,7 +75,7 @@ public static class HatsTabPatches
                     }));
                     colorChip.Button.OnMouseOut.AddListener((UnityAction)(()=>
                     {
-                        __instance.SelectHat(DestroyableSingleton<HatManager>.Instance.GetHatById(DataManager.Player.Customization.Hat));
+                        __instance.SelectHat(HatManager.Instance.GetHatById(DataManager.Player.Customization.Hat));
                     }));
                     colorChip.Button.OnClick.AddListener((UnityAction)(()=>
                     {
@@ -98,7 +97,7 @@ public static class HatsTabPatches
                 colorChip.SelectionHighlight.gameObject.SetActive(false);
                 __instance.ColorChips.Add(colorChip);
                 num++;
-                if (!DestroyableSingleton<HatManager>.Instance.CheckLongModeValidCosmetic(hat.ProdId, __instance.PlayerPreview.GetIgnoreLongMode()))
+                if (!HatManager.Instance.CheckLongModeValidCosmetic(hat.ProdId, __instance.PlayerPreview.GetIgnoreLongMode()))
                 {
                     colorChip.SetUnavailable();
                 }

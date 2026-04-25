@@ -140,7 +140,6 @@ public class HatLoader : BaseLoader
         hatViewData.MatchPlayerColor = metadata.MatchPlayerColor;
         hatViewData.MainImage = hatSprite;
 
-
         var climbSpritePath = Path.ChangeExtension(filePath, ".climb");
         var climbSprite = SpriteTools.LoadSpriteFromFile(climbSpritePath);
         if (climbSprite != null)
@@ -215,6 +214,7 @@ public class HatLoader : BaseLoader
         hatData.BlocksVisors = metadata.BlocksVisors;
         hatData.NoBounce = metadata.NoBounce;
         hatData.InFront = metadata.InFront;
+        hatData.PreviewCrewmateColor = metadata.MatchPlayerColor;
         hatData.ViewDataRef = new AssetReference(HatLocator.GetGuid(fullId, ReferenceType.HatViewData));
         hatData.PreviewData = new AssetReference(HatLocator.GetGuid(fullId, ReferenceType.Preview));
 

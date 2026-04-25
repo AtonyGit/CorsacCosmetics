@@ -29,11 +29,12 @@ public class BundleLoader(HatLoader hatLoader, VisorLoader visorLoader, Nameplat
         }
     }
 
-    public void LoadBundle(string file)
+    public bool LoadBundle(string file)
     {
         if (!File.Exists(file))
         {
-            throw new FileNotFoundException();
+            Error($"Bundle file {file} does not exist! Skipping bundle.");
+            return false;
         }
 
         using var fs = new FileStream(file, FileMode.Open, FileAccess.Read);
@@ -42,27 +43,27 @@ public class BundleLoader(HatLoader hatLoader, VisorLoader visorLoader, Nameplat
         if (!header.IsValid)
         {
             Error($"File {file} is not a valid bundle. Skipping bundle.");
-            return;
+            return false;
         }
 
         if (!header.IsSupportedVersion)
         {
-            Error($"Bundle version {header.Version} is not supported!");
-            return;
+            Debug($"Bundle version {header.Version} is not supported by V1 loader! Skipping bundle.");
+            return false;
         }
 
         var manifestBytes = new byte[header.ManifestLength];
         if (fs.Read(manifestBytes.AsSpan()) != header.ManifestLength)
         {
             Error("Could not read full bundle manifest!");
-            return;
+            return false;
         }
 
         var manifest = JsonSerializer.Deserialize<BundleManifest>(manifestBytes);
         if (manifest.Hats == null)
         {
             Error("Bundle data cannot be null!");
-            return;
+            return false;
         }
 
         var start = fs.Position;
@@ -84,6 +85,8 @@ public class BundleLoader(HatLoader hatLoader, VisorLoader visorLoader, Nameplat
             LoadNameplate(nameplateManifest, fs, start);
             Info($"Loaded {nameplateManifest.Name} from bundle");
         }
+
+        return true;
     }
 
     private void LoadHat(HatManifest manifest, FileStream fs, long start)
