@@ -26,21 +26,13 @@ public class InventoryTabPaginationBehaviour(nint cppPtr) : MonoBehaviour(cppPtr
         MaxTab = maxTab;
         GetTextFunction = getTextFunction;
 
-        if (!title)
-        {
-            title = inventoryTab.transform.Find("Text").GetComponent<TextMeshPro>();
-            title.GetComponent<TextTranslatorTMP>().DestroyImmediate();
-            title.text = GetTextFunction();
-            title.transform.localPosition += new Vector3(1f, 0f, 0f);
-        }
-
         if (!nextButton)
         {
             nextButton = Instantiate(PlayerCustomizationMenu.Instance.BackButton, inventoryTab.transform).GetComponent<PassiveButton>();
             nextButton.GetComponent<AspectPosition>().DestroyImmediate();
             nextButton.GetComponent<CloseButtonConsoleBehaviour>().DestroyImmediate();
             nextButton.name = "nextButton";
-            nextButton.transform.localPosition = title.transform.localPosition - new Vector3(2.7f, 0f, 0f);
+            nextButton.transform.localPosition = new Vector3(2.91f, -0.23f, -55f);
             nextButton.transform.localScale = new Vector3(0.5f, 0.5f, 1);
             nextButton.OnClick = new Button.ButtonClickedEvent();
             nextButton.OnClick.AddListener((UnityAction)NextPage);
@@ -51,10 +43,21 @@ public class InventoryTabPaginationBehaviour(nint cppPtr) : MonoBehaviour(cppPtr
         {
             backButton = Instantiate(nextButton, inventoryTab.transform);
             backButton.name = "backButton";
-            backButton.transform.localPosition -= new Vector3(0.5f, 0f, 0f);
+            backButton.transform.localPosition = new Vector3(-1.19f, -0.23f, -55f);
             backButton.OnClick = new Button.ButtonClickedEvent();
             backButton.OnClick.AddListener((UnityAction)PreviousPage);
             backButton.GetComponent<SpriteRenderer>().flipX = true;
+        }
+
+        if (!title)
+        {
+            title = inventoryTab.transform.Find("Text").GetComponent<TextMeshPro>();
+            title.GetComponent<TextTranslatorTMP>().DestroyImmediate();
+            title.text = GetTextFunction();
+            title.alignment = TextAlignmentOptions.Center;
+            title.transform.localPosition =  new Vector3(0.86f, -0.23f, -55f);
+            title.fontSize = title.fontSizeMax = 6;
+            title.rectTransform.sizeDelta = new Vector2(3.5f, 1f);
         }
     }
 
