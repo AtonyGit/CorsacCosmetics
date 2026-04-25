@@ -13,12 +13,18 @@ public static class HatsTabPatches
 
     private static string GetText()
     {
+        string name;
         if (!_pagination || _pagination.CurrentTab == 0)
         {
-            return TranslationController.Instance.GetString(StringNames.HatLabel);
+            name = TranslationController.Instance.GetString(StringNames.HatLabel);
+        }
+        else
+        {
+            name = CosmeticsLoader.Instance.HatGroups.GetGroupNameByIndex(_pagination.CurrentTab - 1);
         }
 
-        return CosmeticsLoader.Instance.HatGroups.GetGroupNameByIndex(_pagination.CurrentTab - 1);
+        var max = CosmeticsLoader.Instance.HatGroups.Count;
+        return $"{name} ({_pagination.CurrentTab} / {max})";
     }
 
     private static bool ShowOnPage(string id)

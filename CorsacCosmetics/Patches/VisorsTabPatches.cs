@@ -13,12 +13,18 @@ public static class VisorsTabPatches
 
     private static string GetText()
     {
+        string name;
         if (!_pagination || _pagination.CurrentTab == 0)
         {
-            return TranslationController.Instance.GetString(StringNames.Visors);
+            name = TranslationController.Instance.GetString(StringNames.Visors);
+        }
+        else
+        {
+            name = CosmeticsLoader.Instance.VisorGroups.GetGroupNameByIndex(_pagination.CurrentTab - 1);
         }
 
-        return CosmeticsLoader.Instance.VisorGroups.GetGroupNameByIndex(_pagination.CurrentTab - 1);
+        var max = CosmeticsLoader.Instance.VisorGroups.Count;
+        return $"{name} ({_pagination.CurrentTab} / {max})";
     }
 
     private static bool ShowOnPage(string id)
