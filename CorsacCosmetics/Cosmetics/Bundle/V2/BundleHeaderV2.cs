@@ -20,13 +20,13 @@ public readonly record struct BundleHeaderV2
     public bool IsValid => Magic == ExpectedMagic;
     public bool IsSupportedVersion => Version is CurrentVersion;
 
-    public static BundleHeader Read(Stream stream)
+    public static BundleHeaderV2 Read(Stream stream)
     {
         var buffer = new byte[16];
         if (stream.Read(buffer, 0, buffer.Length) != buffer.Length)
             throw new EndOfStreamException("Could not read the full bundle header.");
         
-        return new BundleHeader
+        return new BundleHeaderV2
         {
             Magic = BinaryPrimitives.ReadUInt32LittleEndian(buffer.AsSpan(0, 4)),
             Version = BinaryPrimitives.ReadUInt16LittleEndian(buffer.AsSpan(4, 2)),
@@ -36,7 +36,7 @@ public readonly record struct BundleHeaderV2
         };
     }
 
-    public static void Write(Stream stream, BundleHeader header)
+    public static void Write(Stream stream, BundleHeaderV2 header)
     {
         var buffer = new byte[16];
         BinaryPrimitives.WriteUInt32LittleEndian(buffer.AsSpan(0, 4), header.Magic);

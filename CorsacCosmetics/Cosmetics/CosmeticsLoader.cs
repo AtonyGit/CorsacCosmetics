@@ -65,9 +65,8 @@ public class CosmeticsLoader
 
     public void LoadCosmetics()
     {
-        Info("Loading bundles...");
+        Info("Loading V1 bundles...");
         _bundleLoader.LoadBundles(CosmeticPaths.BundlePath);
-        _bundleLoaderV2.LoadBundles(CosmeticPaths.BundlePath);
 
         Info("Loading hats...");
         HatLoader.LoadCosmetics(CosmeticPaths.HatPath);
@@ -89,6 +88,24 @@ public class CosmeticsLoader
         {
             CosmeticGroup.ids.Add(id);
         }
+
+        if (HatLoader.CustomHats.Count > 0)
+        {
+            HatGroups.Add("default");
+        }
+
+        if (VisorLoader.CustomVisors.Count > 0)
+        {
+            VisorGroups.Add("default");
+        }
+
+        if (NameplateLoader.CustomNamePlates.Count > 0)
+        {
+            NameplateGroups.Add("default");
+        }
+
+        Info("Loading V2 bundles...");
+        _bundleLoaderV2.LoadBundles(CosmeticPaths.BundlePath);
     }
 
     public void InstallCosmetics(ReferenceData referenceData)

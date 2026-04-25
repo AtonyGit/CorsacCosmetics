@@ -12,7 +12,7 @@ namespace CorsacCosmetics.Patches;
 
 public static class HatsTabPatches
 {
-    public static int CurrentTab { get; private set; } = 0;
+    public static int CurrentTab { get; private set; }
     
     public static TextMeshPro Title { get; private set; }
 
@@ -66,6 +66,7 @@ public static class HatsTabPatches
         var group = parts[1];
         var currentGroup = CosmeticsLoader.Instance.GetHatGroupIdByIndex(CurrentTab - 1);
 
+        Info($"{currentGroup} - {id}");
         return currentGroup == group;
     }
 

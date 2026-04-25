@@ -40,24 +40,28 @@ public class BundleLoader(HatLoader hatLoader, VisorLoader visorLoader, Nameplat
 
         if (!header.IsValid)
         {
-            throw new InvalidHeaderException("Bundle header is invalid.");
+            Error($"File {file} is not a valid bundle. Skipping bundle.");
+            return;
         }
 
         if (!header.IsSupportedVersion)
         {
-            throw new UnsupportedVersionException($"Bundle version {header.Version} is not supported!");
+            Error($"Bundle version {header.Version} is not supported!");
+            return;
         }
 
         var manifestBytes = new byte[header.ManifestLength];
         if (fs.Read(manifestBytes.AsSpan()) != header.ManifestLength)
         {
-            throw new EndOfStreamException("Could not read full bundle manifest!");
+            Error("Could not read full bundle manifest!");
+            return;
         }
 
         var manifest = JsonSerializer.Deserialize<BundleManifest>(manifestBytes);
         if (manifest.Hats == null)
         {
-            throw new InvalidDataException("Bundle data cannot be null!");
+            Error("Bundle data cannot be null!");
+            return;
         }
 
         var start = fs.Position;

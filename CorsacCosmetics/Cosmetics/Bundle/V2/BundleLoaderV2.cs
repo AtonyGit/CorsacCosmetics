@@ -49,48 +49,59 @@ public class BundleLoaderV2(
 
         if (!header.IsValid)
         {
-            throw new InvalidHeaderException("Bundle header is invalid.");
+            Error($"File {file} is not a valid bundle. Skipping bundle.");
+            return;
         }
 
         if (!header.IsSupportedVersion)
         {
-            throw new UnsupportedVersionException($"Bundle version {header.Version} is not supported!");
+            Error($"Bundle version {header.Version} is not supported. Skipping bundle.");
+            return;
         }
 
         var manifestBytes = new byte[header.ManifestLength];
         if (fs.Read(manifestBytes.AsSpan()) != header.ManifestLength)
         {
-            throw new EndOfStreamException("Could not read full bundle manifest!");
+            Error($"Could not read the full manifest from {file}. Skipping bundle.");
+            return;
         }
 
         var manifest = JsonSerializer.Deserialize<BundleManifestV2>(manifestBytes);
         if (manifest.Groups == null)
         {
-            throw new InvalidDataException("Bundle data cannot be null!");
+            Error($"Manifest in {file} does not contain any groups. Skipping bundle.");
+            return;
         }
 
         var start = fs.Position;
         
-        var filename = Path.GetFileName(file);
+        var filename = Path.GetFileNameWithoutExtension(file).Replace(".", "-");
 
         foreach (var group in manifest.Groups)
         {
             var name = $"{filename}-{group.Name}";
-            groupNames[name] = group.Name;
-
-            if (group.Hats.Length > 0)
+            if (group.Name == "Custom Cosmetics")
             {
-                hatGroups.Add(name);
+                name = "default";
             }
-
-            if (group.Visors.Length > 0)
+            else
             {
-                visorGroups.Add(name);
-            }
+                groupNames[name] = group.Name;
 
-            if (group.Nameplates.Length > 0)
-            {
-                nameplateGroups.Add(name);
+                if (group.Hats.Length > 0)
+                {
+                    hatGroups.Add(name);
+                }
+
+                if (group.Visors.Length > 0)
+                {
+                    visorGroups.Add(name);
+                }
+
+                if (group.Nameplates.Length > 0)
+                {
+                    nameplateGroups.Add(name);
+                }
             }
             
             foreach (var hatManifest in group.Hats)
