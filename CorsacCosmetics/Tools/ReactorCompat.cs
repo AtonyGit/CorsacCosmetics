@@ -2,7 +2,7 @@
 using System.Linq;
 using HarmonyLib;
 
-namespace CorsacCosmetics;
+namespace CorsacCosmetics.Tools;
 
 public static class ReactorCompat
 {

@@ -1,8 +1,9 @@
 ﻿// https://github.com/NuclearPowered/Reactor/blob/9bd370bfc10d666431efdb70f4cd02f0d9eefe91/Reactor/Utilities/Extensions/UnityObjectExtensions.cs#L1
+
 using UnityEngine;
 using UnityObject = UnityEngine.Object;
 
-namespace CorsacCosmetics;
+namespace CorsacCosmetics.Tools;
 
 /// <summary>
 /// Provides extension methods for <see cref="UnityObject"/>.

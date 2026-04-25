@@ -1,4 +1,4 @@
-﻿namespace CorsacCosmetics;
+﻿namespace CorsacCosmetics.Tools;
 
 public static class Logger
 {

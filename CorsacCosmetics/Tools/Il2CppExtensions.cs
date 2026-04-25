@@ -3,7 +3,7 @@ using System.Buffers;
 using System.IO;
 using Il2CppInterop.Runtime.InteropTypes.Arrays;
 
-namespace CorsacCosmetics;
+namespace CorsacCosmetics.Tools;
 
 public static class Il2CppExtensions
 {

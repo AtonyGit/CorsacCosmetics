@@ -3,7 +3,7 @@ using System.IO;
 using Il2CppInterop.Runtime.InteropTypes.Arrays;
 using UnityEngine;
 
-namespace CorsacCosmetics;
+namespace CorsacCosmetics.Tools;
 
 public static class SpriteTools
 {

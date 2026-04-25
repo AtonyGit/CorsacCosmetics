@@ -1,72 +1,36 @@
-﻿using System.Collections.Generic;
-using AmongUs.Data;
+﻿using AmongUs.Data;
+using CorsacCosmetics.Components;
 using CorsacCosmetics.Cosmetics;
-using CorsacCosmetics.Cosmetics.Hats;
 using HarmonyLib;
-using TMPro;
 using UnityEngine;
 using UnityEngine.Events;
-using UnityEngine.UI;
 
 namespace CorsacCosmetics.Patches;
 
 public static class HatsTabPatches
 {
-    public static int CurrentTab { get; private set; }
-    
-    public static TextMeshPro Title { get; private set; }
-
-    public static PassiveButton BackButton { get; private set; }
-
-    public static PassiveButton NextButton { get; private set; }
-
-    public static HatsTab HatsTab { get; private set; }
-
-    private static int MaxTab => CosmeticsLoader.Instance.HatGroups.Count;
+    private static InventoryTabPaginationBehaviour _pagination = null!;
 
     private static string GetText()
     {
-        if (CurrentTab == 0)
+        if (!_pagination || _pagination.CurrentTab == 0)
             return "Hats";
 
-        return CosmeticsLoader.Instance.GetHatGroupNameByIndex(CurrentTab - 1);
-    }
-
-    public static void NextPage()
-    {
-        CurrentTab++;
-        if (CurrentTab > MaxTab) CurrentTab = 0;
-
-        if (HatsTab)
-        {
-            HatsTab.enabled = false;
-            HatsTab.enabled = true;
-        }
-    }
-
-    public static void PrevPage()
-    {
-        CurrentTab--;
-        if (CurrentTab < 0) CurrentTab = MaxTab;
-
-        if (HatsTab)
-        {
-            HatsTab.enabled = false;
-            HatsTab.enabled = true;
-        }
+        return CosmeticsLoader.Instance.GetHatGroupNameByIndex(_pagination.CurrentTab - 1);
     }
 
     public static bool ShowOnPage(string id)
     {
-        if (CurrentTab == 0) return !id.StartsWith("corsac");
+        if (!_pagination) return true;
+        
+        if (_pagination.CurrentTab == 0) return !id.StartsWith("corsac");
 
         if (!id.StartsWith("corsac")) return false;
         
         var parts = id.Split('.');
         var group = parts[1];
-        var currentGroup = CosmeticsLoader.Instance.GetHatGroupIdByIndex(CurrentTab - 1);
+        var currentGroup = CosmeticsLoader.Instance.GetHatGroupIdByIndex(_pagination.CurrentTab - 1);
 
-        Info($"{currentGroup} - {id}");
         return currentGroup == group;
     }
 
@@ -76,38 +40,16 @@ public static class HatsTabPatches
         public static bool Prefix(HatsTab __instance)
         {
             // --------- Pagination ----------------
-            HatsTab = __instance;
-
-            if (!Title)
+            _pagination = __instance.GetComponent<InventoryTabPaginationBehaviour>();
+            if (!_pagination)
             {
-                Title = __instance.transform.Find("Text").GetComponent<TextMeshPro>();
-                Title.GetComponent<TextTranslatorTMP>().DestroyImmediate();
-                Title.text = GetText();
-                Title.transform.localPosition += new Vector3(1f, 0f, 0f);
+                _pagination = __instance.gameObject.AddComponent<InventoryTabPaginationBehaviour>();
             }
 
-            if (!NextButton)
-            {
-                NextButton = Object.Instantiate(PlayerCustomizationMenu.Instance.BackButton, __instance.transform).GetComponent<PassiveButton>();
-                NextButton.GetComponent<AspectPosition>().DestroyImmediate();
-                NextButton.GetComponent<CloseButtonConsoleBehaviour>().DestroyImmediate();
-                NextButton.name = "NextButton";
-                NextButton.transform.localPosition = Title.transform.localPosition - new Vector3(2.7f, 0f, 0f);
-                NextButton.transform.localScale = new Vector3(0.5f, 0.5f, 1);
-                NextButton.OnClick = new Button.ButtonClickedEvent();
-                NextButton.OnClick.AddListener((UnityAction)NextPage);
-                NextButton.GetComponent<SpriteRenderer>().sprite = Assets.NextButton;
-            }
-
-            if (!BackButton)
-            {
-                BackButton = Object.Instantiate(NextButton, __instance.transform);
-                BackButton.name = "BackButton";
-                BackButton.transform.localPosition -= new Vector3(0.5f, 0f, 0f);
-                BackButton.OnClick = new Button.ButtonClickedEvent();
-                BackButton.OnClick.AddListener((UnityAction)PrevPage);
-                BackButton.GetComponent<SpriteRenderer>().flipX = true;
-            }
+            _pagination.Setup(
+                __instance,
+                CosmeticsLoader.Instance.HatGroups.Count,
+                GetText);
 
             // ---------- Original Game Code -----------
             InventoryTabReversePatch.OnEnable(__instance);
@@ -165,16 +107,6 @@ public static class HatsTabPatches
             __instance.currentHatIsEquipped = true;
             __instance.SetScrollerBounds();
             return false;
-        }
-    }
-
-    [HarmonyPatch(typeof(HatsTab), nameof(HatsTab.Update))]
-    public static class HatsTabUpdatePatch
-    {
-        public static bool Prefix()
-        {
-            if (Title) Title.text = GetText();
-            return true;
         }
     }
 }

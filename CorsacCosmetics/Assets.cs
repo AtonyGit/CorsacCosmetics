@@ -1,14 +1,15 @@
 ﻿using System;
 using System.Reflection;
+using CorsacCosmetics.Tools;
 using UnityEngine;
 
 namespace CorsacCosmetics;
 
 public static class Assets
 {
-    public static Sprite NextButton { get; private set; }
+    public static Sprite NextButton { get; private set; } = null!;
     
-    public static Sprite NextButtonActive { get; private set; }
+    public static Sprite NextButtonActive { get; private set; } = null!;
 
     public static void Initialize()
     {

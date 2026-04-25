@@ -1,8 +1,10 @@
-﻿global using static CorsacCosmetics.Logger;
+﻿global using static CorsacCosmetics.Tools.Logger;
 using System.Reflection;
 using BepInEx;
 using BepInEx.Unity.IL2CPP;
+using CorsacCosmetics.Components;
 using CorsacCosmetics.Cosmetics;
+using CorsacCosmetics.Tools;
 using CorsacCosmetics.Unity;
 using HarmonyLib;
 using Il2CppInterop.Runtime.Injection;
@@ -32,6 +34,8 @@ public partial class CorsacCosmeticsPlugin : BasePlugin
         Assets.Initialize();
 
         ReactorCompat.RegisterCredits();
+        
+        ClassInjector.RegisterTypeInIl2Cpp<InventoryTabPaginationBehaviour>();
 
         ClassInjector.RegisterTypeInIl2Cpp<HatLocator>(new RegisterTypeOptions
         {
