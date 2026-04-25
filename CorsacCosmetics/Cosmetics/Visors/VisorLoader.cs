@@ -17,11 +17,6 @@ public class VisorLoader : BaseLoader
 {
     public Dictionary<string, CustomVisor> CustomVisors { get; } = [];
 
-    public override string GetCosmeticId(string name)
-    {
-        return $"corsac.visor.{name}";
-    }
-
     public override void InstallCosmetics(ReferenceData refData)
     {
         foreach (var (id, customVisor) in CustomVisors)
@@ -130,7 +125,7 @@ public class VisorLoader : BaseLoader
             return false;
         }
 
-        var fullId = GetCosmeticId(name);
+        var fullId = Names.Normalize(name, "nameplate");
 
         var visorSprite = SpriteTools.LoadSpriteFromFile(filePath);
         if (visorSprite == null)

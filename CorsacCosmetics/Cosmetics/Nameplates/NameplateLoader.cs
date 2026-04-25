@@ -17,11 +17,6 @@ public class NameplateLoader : BaseLoader
 {
     public Dictionary<string, CustomNamePlate> CustomNamePlates { get; } = [];
 
-    public override string GetCosmeticId(string name)
-    {
-        return $"corsac.nameplate.{name}";
-    }
-
     public override void InstallCosmetics(ReferenceData refData)
     {
         foreach (var (id, customNamePlate) in CustomNamePlates)
@@ -130,7 +125,7 @@ public class NameplateLoader : BaseLoader
             return false;
         }
 
-        var fullId = GetCosmeticId(name);
+        var fullId = Names.Normalize(name, "nameplate");
 
         var namePlateSprite = SpriteTools.LoadSpriteFromFile(filePath);
         if (namePlateSprite == null)

@@ -15,11 +15,6 @@ public class HatLoader : BaseLoader
 {
     public Dictionary<string, CustomHat> CustomHats { get; } = [];
 
-    public override string GetCosmeticId(string name)
-    {
-        return $"corsac.hat.{name}";
-    }
-
     public override void InstallCosmetics(ReferenceData refData)
     {
         foreach (var (id, customHat) in CustomHats)
@@ -128,7 +123,7 @@ public class HatLoader : BaseLoader
             return false;
         }
 
-        var fullId = GetCosmeticId(name);
+        var fullId = Names.Normalize(name, "hat");
 
         var hatSprite = SpriteTools.LoadSpriteFromFile(filePath);
         if (hatSprite == null)

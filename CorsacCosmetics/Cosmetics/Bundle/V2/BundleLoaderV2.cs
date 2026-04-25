@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
 using CorsacCosmetics.Cosmetics.Hats;
@@ -8,9 +9,17 @@ using CorsacCosmetics.Unity;
 using UnityEngine;
 using UnityEngine.AddressableAssets;
 
-namespace CorsacCosmetics.Cosmetics.Bundle;
+namespace CorsacCosmetics.Cosmetics.Bundle.V2;
 
-public class BundleLoader(HatLoader hatLoader, VisorLoader visorLoader, NameplateLoader nameplateLoader)
+public class BundleLoaderV2(
+    HatLoader hatLoader, 
+    VisorLoader visorLoader, 
+    NameplateLoader nameplateLoader,
+    Dictionary<string, string> groupNames,
+    List<string> hatGroups,
+    List<string> visorGroups,
+    List<string> nameplateGroups
+    )
 {
     public void LoadBundles(string directory)
     {
@@ -36,7 +45,7 @@ public class BundleLoader(HatLoader hatLoader, VisorLoader visorLoader, Nameplat
         }
 
         using var fs = new FileStream(file, FileMode.Open, FileAccess.Read);
-        var header = BundleHeader.Read(fs);
+        var header = BundleHeaderV2.Read(fs);
 
         if (!header.IsValid)
         {
@@ -54,36 +63,59 @@ public class BundleLoader(HatLoader hatLoader, VisorLoader visorLoader, Nameplat
             throw new EndOfStreamException("Could not read full bundle manifest!");
         }
 
-        var manifest = JsonSerializer.Deserialize<BundleManifest>(manifestBytes);
-        if (manifest.Hats == null)
+        var manifest = JsonSerializer.Deserialize<BundleManifestV2>(manifestBytes);
+        if (manifest.Groups == null)
         {
             throw new InvalidDataException("Bundle data cannot be null!");
         }
 
         var start = fs.Position;
+        
+        var filename = Path.GetFileName(file);
 
-        foreach (var hatManifest in manifest.Hats)
+        foreach (var group in manifest.Groups)
         {
-            LoadHat(hatManifest, fs, start);
-            Info($"Loaded {hatManifest.Name} from bundle");
-        }
+            var name = $"{filename}-{group.Name}";
+            groupNames[name] = group.Name;
 
-        foreach (var visorManifest in manifest.Visors)
-        {
-            LoadVisor(visorManifest, fs, start);
-            Info($"Loaded {visorManifest.Name} from bundle");
-        }
+            if (group.Hats.Length > 0)
+            {
+                hatGroups.Add(name);
+            }
 
-        foreach (var nameplateManifest in manifest.Nameplates)
-        {
-            LoadNameplate(nameplateManifest, fs, start);
-            Info($"Loaded {nameplateManifest.Name} from bundle");
+            if (group.Visors.Length > 0)
+            {
+                visorGroups.Add(name);
+            }
+
+            if (group.Nameplates.Length > 0)
+            {
+                nameplateGroups.Add(name);
+            }
+            
+            foreach (var hatManifest in group.Hats)
+            {
+                LoadHat(hatManifest, fs, start, name);
+                Info($"Loaded {hatManifest.Name} from bundle");
+            }
+
+            foreach (var visorManifest in group.Visors)
+            {
+                LoadVisor(visorManifest, fs, start, name);
+                Info($"Loaded {visorManifest.Name} from bundle");
+            }
+
+            foreach (var nameplateManifest in group.Nameplates)
+            {
+                LoadNameplate(nameplateManifest, fs, start, name);
+                Info($"Loaded {nameplateManifest.Name} from bundle");
+            }
         }
     }
 
-    private void LoadHat(HatManifest manifest, FileStream fs, long start)
+    private void LoadHat(HatManifest manifest, FileStream fs, long start, string groupName)
     {
-        var id = Names.Normalize(manifest.Name, "hat", "default.bundle");
+        var id = Names.Normalize(manifest.Name, "hat", groupName);
 
         var hatViewData = ScriptableObject.CreateInstance<HatViewData>();
         hatViewData.name = manifest.Name;
@@ -122,9 +154,9 @@ public class BundleLoader(HatLoader hatLoader, VisorLoader visorLoader, Nameplat
         hatData.PreviewData.LoadAsset<PreviewViewData>();
     }
 
-    private void LoadVisor(VisorManifest manifest, FileStream fs, long start)
+    private void LoadVisor(VisorManifest manifest, FileStream fs, long start, string groupName)
     {
-        var id = Names.Normalize(manifest.Name, "visor", "default.bundle");
+        var id = Names.Normalize(manifest.Name, "visor", groupName);
 
         var visorViewData = ScriptableObject.CreateInstance<VisorViewData>();
         visorViewData.name = manifest.Name;
@@ -157,9 +189,9 @@ public class BundleLoader(HatLoader hatLoader, VisorLoader visorLoader, Nameplat
         visorData.PreviewData.LoadAsset<PreviewViewData>();
     }
 
-    private void LoadNameplate(NameplateManifest manifest, FileStream fs, long start)
+    private void LoadNameplate(NameplateManifest manifest, FileStream fs, long start, string groupName)
     {
-        var id = Names.Normalize(manifest.Name, "nameplate", "default.bundle");
+        var id = Names.Normalize(manifest.Name, "nameplate", groupName);
 
         var namePlateViewData = ScriptableObject.CreateInstance<NamePlateViewData>();
         namePlateViewData.name = manifest.Name;

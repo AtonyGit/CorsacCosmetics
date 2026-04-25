@@ -1,7 +1,9 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using CorsacCosmetics.Cosmetics.Bundle;
+using CorsacCosmetics.Cosmetics.Bundle.V2;
 using CorsacCosmetics.Cosmetics.Hats;
 using CorsacCosmetics.Cosmetics.Nameplates;
 using CorsacCosmetics.Cosmetics.Visors;
@@ -14,15 +16,6 @@ namespace CorsacCosmetics.Cosmetics;
 
 public class CosmeticsLoader
 {
-    private CosmeticsLoader()
-    {
-        EmptyKeys = new Il2CppSystem.Collections.Generic.IEnumerable<Il2CppSystem.Object>(_emptyKeys.Pointer);
-        CosmeticGroup = ScriptableObject.CreateInstance<CosmeticReleaseGroup>();
-        CosmeticGroup.date = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
-
-        _bundleLoader = new BundleLoader(_hatLoader, _visorLoader, _nameplateLoader);
-    }
-
     private static CosmeticsLoader? _cosmeticsLoader;
     public static CosmeticsLoader Instance => _cosmeticsLoader ??= new CosmeticsLoader();
 
@@ -32,34 +25,67 @@ public class CosmeticsLoader
 
     public CosmeticReleaseGroup CosmeticGroup { get; }
 
+    // ID -> Name
+    public Dictionary<string, string> CustomGroups { get; }
+
+    public List<string> HatGroups { get; } = [];
+    public List<string> VisorGroups { get; } = [];
+    public List<string> NameplateGroups { get; } = [];
+
     private readonly BundleLoader _bundleLoader;
-    
-    private readonly HatLoader _hatLoader = new();
-    private readonly VisorLoader  _visorLoader = new();
-    private readonly NameplateLoader _nameplateLoader = new();
+    private readonly BundleLoaderV2 _bundleLoaderV2;
+
+    private HatLoader HatLoader { get; } = new();
+    private VisorLoader VisorLoader { get; } = new();
+    private NameplateLoader NameplateLoader { get; } = new();
+
+    private CosmeticsLoader()
+    {
+        EmptyKeys = new Il2CppSystem.Collections.Generic.IEnumerable<Il2CppSystem.Object>(_emptyKeys.Pointer);
+        CosmeticGroup = ScriptableObject.CreateInstance<CosmeticReleaseGroup>();
+        CosmeticGroup.date = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
+
+        CustomGroups = [];
+        CustomGroups.Add("default", "Custom Cosmetics");
+
+        _bundleLoader = new BundleLoader(HatLoader, VisorLoader, NameplateLoader);
+        _bundleLoaderV2 = new BundleLoaderV2(HatLoader, VisorLoader, NameplateLoader, 
+            CustomGroups, HatGroups, VisorGroups, NameplateGroups);
+    }
+
+    public string GetHatGroupIdByIndex(int index)
+    {
+        return HatGroups[index];
+    }
+
+    public string GetHatGroupNameByIndex(int index)
+    {
+        return CustomGroups[HatGroups[index]];
+    }
 
     public void LoadCosmetics()
     {
         Info("Loading bundles...");
         _bundleLoader.LoadBundles(CosmeticPaths.BundlePath);
+        _bundleLoaderV2.LoadBundles(CosmeticPaths.BundlePath);
 
         Info("Loading hats...");
-        _hatLoader.LoadCosmetics(CosmeticPaths.HatPath);
-        foreach (var id in _hatLoader.CustomHats.Keys)
+        HatLoader.LoadCosmetics(CosmeticPaths.HatPath);
+        foreach (var id in HatLoader.CustomHats.Keys)
         {
             CosmeticGroup.ids.Add(id);
         }
 
         Info("Loading visors...");
-        _visorLoader.LoadCosmetics(CosmeticPaths.VisorPath);
-        foreach (var id in _visorLoader.CustomVisors.Keys)
+        VisorLoader.LoadCosmetics(CosmeticPaths.VisorPath);
+        foreach (var id in VisorLoader.CustomVisors.Keys)
         {
             CosmeticGroup.ids.Add(id);
         }
 
         Info("Loading nameplates...");
-        _nameplateLoader.LoadCosmetics(CosmeticPaths.NameplatePath);
-        foreach (var id in _nameplateLoader.CustomNamePlates.Keys)
+        NameplateLoader.LoadCosmetics(CosmeticPaths.NameplatePath);
+        foreach (var id in NameplateLoader.CustomNamePlates.Keys)
         {
             CosmeticGroup.ids.Add(id);
         }
@@ -68,13 +94,13 @@ public class CosmeticsLoader
     public void InstallCosmetics(ReferenceData referenceData)
     {
         Info("Installing hats...");
-        _hatLoader.InstallCosmetics(referenceData);
+        HatLoader.InstallCosmetics(referenceData);
 
         Info("Installing visors...");
-        _visorLoader.InstallCosmetics(referenceData);
+        VisorLoader.InstallCosmetics(referenceData);
 
         Info("Installing nameplates");
-        _nameplateLoader.InstallCosmetics(referenceData);
+        NameplateLoader.InstallCosmetics(referenceData);
 
         Info("Installing cosmetic group...");
         var newGroups = referenceData.Groups.releaseGroups.ToList();
@@ -98,9 +124,9 @@ public class CosmeticsLoader
             };
 
             return il2CPPType != null
-                   || _hatLoader.LocateCosmetic(id, type, out il2CPPType)
-                   || _visorLoader.LocateCosmetic(id, type, out il2CPPType)
-                   || _nameplateLoader.LocateCosmetic(id, type, out il2CPPType);
+                   || HatLoader.LocateCosmetic(id, type, out il2CPPType)
+                   || VisorLoader.LocateCosmetic(id, type, out il2CPPType)
+                   || NameplateLoader.LocateCosmetic(id, type, out il2CPPType);
         }
         catch (Exception e)
         {
@@ -120,9 +146,9 @@ public class CosmeticsLoader
         try
         {
             var result = 
-                _hatLoader.ProvideCosmetic(provideHandle, id, type) 
-                || _visorLoader.ProvideCosmetic(provideHandle, id, type)
-                || _nameplateLoader.ProvideCosmetic(provideHandle, id, type);
+                HatLoader.ProvideCosmetic(provideHandle, id, type) 
+                || VisorLoader.ProvideCosmetic(provideHandle, id, type)
+                || NameplateLoader.ProvideCosmetic(provideHandle, id, type);
 
             return result ? true : throw new Exception($"No cosmetic found for {id} and type {type}");
         }
@@ -135,16 +161,16 @@ public class CosmeticsLoader
 
     public bool TryGetHat(string id, [NotNullWhen(true)] out CustomHat? hat)
     {
-        return _hatLoader.CustomHats.TryGetValue(id, out hat);
+        return HatLoader.CustomHats.TryGetValue(id, out hat);
     }
 
     public bool TryGetVisor(string id, [NotNullWhen(true)] out CustomVisor? visor)
     {
-        return _visorLoader.CustomVisors.TryGetValue(id, out visor);
+        return VisorLoader.CustomVisors.TryGetValue(id, out visor);
     }
 
     public bool TryGetNamePlate(string id, [NotNullWhen(true)] out CustomNamePlate? namePlate)
     {
-        return _nameplateLoader.CustomNamePlates.TryGetValue(id, out namePlate);
+        return NameplateLoader.CustomNamePlates.TryGetValue(id, out namePlate);
     }
 }

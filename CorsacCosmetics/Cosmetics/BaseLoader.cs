@@ -5,8 +5,6 @@ namespace CorsacCosmetics.Cosmetics;
 
 public abstract class BaseLoader
 {
-    public abstract string GetCosmeticId(string name);
-
     public abstract void InstallCosmetics(ReferenceData refData);
 
     public abstract void LoadCosmetics(string directory);

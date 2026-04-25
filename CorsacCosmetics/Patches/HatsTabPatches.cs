@@ -1,4 +1,7 @@
-﻿using AmongUs.Data;
+﻿using System.Collections.Generic;
+using AmongUs.Data;
+using CorsacCosmetics.Cosmetics;
+using CorsacCosmetics.Cosmetics.Hats;
 using HarmonyLib;
 using TMPro;
 using UnityEngine;
@@ -19,18 +22,20 @@ public static class HatsTabPatches
 
     public static HatsTab HatsTab { get; private set; }
 
+    private static int MaxTab => CosmeticsLoader.Instance.HatGroups.Count;
+
     private static string GetText()
     {
         if (CurrentTab == 0)
             return "Hats";
 
-        return "Custom Hats";
+        return CosmeticsLoader.Instance.GetHatGroupNameByIndex(CurrentTab - 1);
     }
 
     public static void NextPage()
     {
         CurrentTab++;
-        if (CurrentTab > 1) CurrentTab = 0;
+        if (CurrentTab > MaxTab) CurrentTab = 0;
 
         if (HatsTab)
         {
@@ -42,7 +47,7 @@ public static class HatsTabPatches
     public static void PrevPage()
     {
         CurrentTab--;
-        if (CurrentTab < 0) CurrentTab = 1;
+        if (CurrentTab < 0) CurrentTab = MaxTab;
 
         if (HatsTab)
         {
@@ -55,7 +60,13 @@ public static class HatsTabPatches
     {
         if (CurrentTab == 0) return !id.StartsWith("corsac");
 
-        return id.StartsWith("corsac");
+        if (!id.StartsWith("corsac")) return false;
+        
+        var parts = id.Split('.');
+        var group = parts[1];
+        var currentGroup = CosmeticsLoader.Instance.GetHatGroupIdByIndex(CurrentTab - 1);
+
+        return currentGroup == group;
     }
 
     [HarmonyPatch(typeof(HatsTab), nameof(HatsTab.OnEnable))]
@@ -159,7 +170,7 @@ public static class HatsTabPatches
     [HarmonyPatch(typeof(HatsTab), nameof(HatsTab.Update))]
     public static class HatsTabUpdatePatch
     {
-        public static bool Prefix(HatsTab __instance)
+        public static bool Prefix()
         {
             if (Title) Title.text = GetText();
             return true;
