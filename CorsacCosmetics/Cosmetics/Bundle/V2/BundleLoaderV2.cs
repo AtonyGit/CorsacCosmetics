@@ -203,6 +203,7 @@ public class BundleLoaderV2(
         hatData.InFront = manifest.InFront;
         hatData.ViewDataRef = new AssetReference(HatLocator.GetGuid(id, ReferenceType.HatViewData));
         hatData.PreviewData = new AssetReference(HatLocator.GetGuid(id, ReferenceType.Preview));
+        hatData.PreviewCrewmateColor = manifest.MatchPlayerColor;
 
         var customHat = new CustomHat(id, hatData, hatViewData, previewData);
         hatLoader.CustomHats.Add(id, customHat);
@@ -238,6 +239,7 @@ public class BundleLoaderV2(
         visorData.behindHats = manifest.BehindHats;
         visorData.ViewDataRef = new AssetReference(HatLocator.GetGuid(id, ReferenceType.VisorViewData));
         visorData.PreviewData = new AssetReference(HatLocator.GetGuid(id, ReferenceType.Preview));
+        visorData.PreviewCrewmateColor = manifest.MatchPlayerColor;
 
         var customVisor = new CustomVisor(id, visorData, visorViewData, previewData);
         visorLoader.CustomVisors.Add(id, customVisor);
