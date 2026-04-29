@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Reflection;
 using System.Text.Json;
 using CorsacCosmetics.Cosmetics.Hats;
 using CorsacCosmetics.Cosmetics.Nameplates;
@@ -19,6 +20,81 @@ public class BundleLoaderV2(
     Dictionary<string, string> groupNames
     )
 {
+    public bool LoadResourceBundle(Assembly assembly, string resourcePath)
+    {
+        var fs = assembly.GetManifestResourceStream(resourcePath);
+        if (fs == null)
+        {
+            Error($"Bundle file {resourcePath} does not exist in {assembly.GetName().Name}! Skipping bundle.");
+            return false;
+        }
+
+        var header = BundleHeader.Read(fs);
+
+        if (!header.IsValid)
+        {
+            Error($"File {resourcePath} is not a valid bundle. Skipping bundle.");
+            return false;
+        }
+
+        if (!header.IsSupportedVersion)
+        {
+            Debug($"Bundle version {header.Version} is not supported by V1 loader! Skipping bundle.");
+            return false;
+        }
+
+        var manifestBytes = new byte[header.ManifestLength];
+        if (fs.Read(manifestBytes.AsSpan()) != header.ManifestLength)
+        {
+            Error("Could not read full bundle manifest!");
+            return false;
+        }
+
+        var manifest = JsonSerializer.Deserialize<BundleManifestV2>(manifestBytes);
+        if (manifest.Groups == null)
+        {
+            Error($"Manifest in {resourcePath} does not contain any groups. Skipping bundle.");
+            return false;
+        }
+
+        var start = fs.Position;
+
+        var filename = Path.GetFileNameWithoutExtension(resourcePath).Replace(".", "-");
+
+        foreach (var group in manifest.Groups)
+        {
+            var name = $"{filename}-{group.Name}";
+            if (group.Name == "Custom Cosmetics")
+            {
+                name = "default";
+            }
+            else
+            {
+                groupNames[name] = group.Name;
+            }
+
+            foreach (var hatManifest in group.Hats)
+            {
+                LoadHat(hatManifest, fs, start, name);
+                Info($"Loaded {hatManifest.Name} from bundle in {assembly.GetName().Name}");
+            }
+
+            foreach (var visorManifest in group.Visors)
+            {
+                LoadVisor(visorManifest, fs, start, name);
+                Info($"Loaded {visorManifest.Name} from bundle in {assembly.GetName().Name}");
+            }
+
+            foreach (var nameplateManifest in group.Nameplates)
+            {
+                LoadNameplate(nameplateManifest, fs, start, name);
+                Info($"Loaded {nameplateManifest.Name} from bundle in {assembly.GetName().Name}");
+            }
+        }
+
+        return true;
+    }
+
     public bool LoadBundle(string file)
     {
         if (!File.Exists(file))
@@ -94,7 +170,7 @@ public class BundleLoaderV2(
         return true;
     }
 
-    private void LoadHat(HatManifest manifest, FileStream fs, long start, string groupName)
+    private void LoadHat(HatManifest manifest, Stream fs, long start, string groupName)
     {
         var id = Names.Normalize(manifest.Name, "hat", groupName);
 
@@ -135,7 +211,7 @@ public class BundleLoaderV2(
         hatData.PreviewData.LoadAsset<PreviewViewData>();
     }
 
-    private void LoadVisor(VisorManifest manifest, FileStream fs, long start, string groupName)
+    private void LoadVisor(VisorManifest manifest, Stream fs, long start, string groupName)
     {
         var id = Names.Normalize(manifest.Name, "visor", groupName);
 
@@ -170,7 +246,7 @@ public class BundleLoaderV2(
         visorData.PreviewData.LoadAsset<PreviewViewData>();
     }
 
-    private void LoadNameplate(NameplateManifest manifest, FileStream fs, long start, string groupName)
+    private void LoadNameplate(NameplateManifest manifest, Stream fs, long start, string groupName)
     {
         var id = Names.Normalize(manifest.Name, "nameplate", groupName);
 

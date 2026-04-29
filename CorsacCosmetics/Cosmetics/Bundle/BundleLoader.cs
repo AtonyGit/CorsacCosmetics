@@ -1,6 +1,9 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Reflection;
 using System.Text.Json;
+using CorsacCosmetics.Cosmetics.Bundle.V2;
 using CorsacCosmetics.Cosmetics.Hats;
 using CorsacCosmetics.Cosmetics.Nameplates;
 using CorsacCosmetics.Cosmetics.Visors;
@@ -27,6 +30,72 @@ public class BundleLoader(HatLoader hatLoader, VisorLoader visorLoader, Nameplat
                 Error($"Error loading bundle from {file}:\n{e}");
             }
         }
+    }
+
+    public static readonly Dictionary<Assembly, string> ResourceBundles = new();
+
+    public static void AddResourceBundle(Assembly assembly, string resourcePath)
+    {
+        ResourceBundles.Add(assembly, resourcePath);
+    }
+    public bool LoadResourceBundle(Assembly assembly, string resourcePath)
+    {
+        using var fs = assembly.GetFile(resourcePath);
+        if (fs == null)
+        {
+            Error($"Bundle file {resourcePath} does not exist in {assembly.GetName().Name}! Skipping bundle.");
+            return false;
+        }
+
+        var header = BundleHeader.Read(fs);
+
+        if (!header.IsValid)
+        {
+            Error($"File {resourcePath} is not a valid bundle. Skipping bundle.");
+            return false;
+        }
+
+        if (!header.IsSupportedVersion)
+        {
+            Debug($"Bundle version {header.Version} is not supported by V1 loader! Skipping bundle.");
+            return false;
+        }
+
+        var manifestBytes = new byte[header.ManifestLength];
+        if (fs.Read(manifestBytes.AsSpan()) != header.ManifestLength)
+        {
+            Error("Could not read full bundle manifest!");
+            return false;
+        }
+
+        var manifest = JsonSerializer.Deserialize<BundleManifest>(manifestBytes);
+        if (manifest.Hats == null)
+        {
+            Error("Bundle data cannot be null!");
+            return false;
+        }
+
+        var start = fs.Position;
+
+        foreach (var hatManifest in manifest.Hats)
+        {
+            LoadHat(hatManifest, fs, start);
+            Info($"Loaded {hatManifest.Name} from bundle in {assembly.GetName().Name}");
+        }
+
+        foreach (var visorManifest in manifest.Visors)
+        {
+            LoadVisor(visorManifest, fs, start);
+            Info($"Loaded {visorManifest.Name} from bundle in {assembly.GetName().Name}");
+        }
+
+        foreach (var nameplateManifest in manifest.Nameplates)
+        {
+            LoadNameplate(nameplateManifest, fs, start);
+            Info($"Loaded {nameplateManifest.Name} from bundle in {assembly.GetName().Name}");
+        }
+
+        return true;
     }
 
     public bool LoadBundle(string file)

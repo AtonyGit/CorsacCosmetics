@@ -61,6 +61,35 @@ public class CosmeticsLoader
     public void LoadCosmetics()
     {
         Info("Loading bundles...");
+        if (BundleLoader.ResourceBundles.Any())
+        {
+            foreach (var pair in BundleLoader.ResourceBundles)
+            {
+                var v1Loaded = false;
+                try
+                {
+                    v1Loaded = _bundleLoader.LoadResourceBundle(pair.Key, pair.Value);
+                }
+                catch (Exception e)
+                {
+                    Error($"Error while loading bundle {pair.Value} in {pair.Key.FullName} with v1 loader:\n{e}");
+                }
+
+                if (v1Loaded)
+                {
+                    continue;
+                }
+
+                try
+                {
+                    _bundleLoaderV2.LoadResourceBundle(pair.Key, pair.Value);
+                }
+                catch (Exception e)
+                {
+                    Error($"Error while loading bundle {pair.Value} in {pair.Key.FullName} with v2 loader:\n{e}");
+                }
+            }
+        }
         foreach (var file in Directory.GetFiles(CosmeticPaths.BundlePath, "*.ccb"))
         {
             if (file == null) continue;
