@@ -19,7 +19,7 @@ public static class CosmeticPaths
 
     public static string VisorPath { get; } = Path.Combine(BasePath, "Visors");
 
-    public static string NameplatePath { get; } = Path.Combine(BasePath, "Nameplates");
+    public static string NameplatePath { get; } = Path.Combine(BasePath, "NamePlates");
 
     public static void EnsureDirectoriesExist()
     {

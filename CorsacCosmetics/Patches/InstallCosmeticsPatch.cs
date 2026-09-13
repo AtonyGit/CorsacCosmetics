@@ -1,11 +1,13 @@
 ﻿using System;
 using System.Collections;
+using System.Linq;
 using BepInEx.Unity.IL2CPP.Utils.Collections;
 using CorsacCosmetics.Cosmetics;
 using CorsacCosmetics.Cosmetics.Sources;
 using CorsacCosmetics.Tools;
 using HarmonyLib;
 using UnityEngine;
+using UnityEngine.ProBuilder;
 
 namespace CorsacCosmetics.Patches;
 
@@ -38,16 +40,12 @@ public static class InstallCosmeticsPatch
         yield return discoveryTask.AsIEnumerator();
         Info("Finished discovery task");
 
-        var cosmeticGroup = ScriptableObject.CreateInstance<CosmeticReleaseGroup>();
-        cosmeticGroup.date = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
-
         var discoveredCosmetics = discoveryTask.Result;
         foreach (var cosmetic in discoveredCosmetics)
         {
             try
             {
                 Debug($"Installing {cosmetic.DisplayName}...");
-                cosmeticGroup.ids.Add(cosmetic.Id);
                 CosmeticsCatalog.Instance.Register(cosmetic);
                 switch (cosmetic.Type)
                 {
