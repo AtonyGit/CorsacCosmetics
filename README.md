@@ -1,3 +1,5 @@
+[![Starlight](https://allofus.dev/static/images/starlight-compatible.svg)](starlight://mods/CorsacCosmetics)
+
 # CorsacCosmetics
 
 CorsacCosmetics is a client-side BepInEx mod for Among Us that adds support for user-provided cosmetic images. This fork updates the original CorsacHats to support newer Among Us versions and expands the available cosmetic types to include hats, visors, and nameplates.
