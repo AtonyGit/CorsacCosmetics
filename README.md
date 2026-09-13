@@ -1,4 +1,4 @@
-[![Starlight](https://allofus.dev/static/images/starlight-compatible.svg)](starlight://mods/CorsacCosmetics)
+[![Starlight badge](https://raw.githubusercontent.com/All-Of-Us-Mods/allofus.dev/refs/heads/master/static/images/starlight-badge.svg)](starlight://mods/CorsacCosmetics)
 
 # CorsacCosmetics
 
